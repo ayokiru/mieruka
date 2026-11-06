@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import type { Doc, Workspace } from "./data/types";
 import { acceptHunk, loadDoc, loadWorkspace, markRead, revertHunk, undoRevert } from "./data/api";
 import { Sidebar } from "./components/Sidebar";
@@ -7,6 +7,10 @@ import { ContextPanel } from "./components/ContextPanel";
 import { Splitter } from "./components/Splitter";
 import { CommandPalette } from "./components/CommandPalette";
 import { Toast } from "./components/Toast";
+import { drafts } from "./data/drafts";
+
+// CodeMirror is only downloaded when someone starts editing.
+const Editor = lazy(() => import("./components/Editor").then((m) => ({ default: m.Editor })));
 
 const NARROW = 1200;
 const REFRESH_MS = 5000;
@@ -62,6 +66,7 @@ export default function App() {
   const showCtx = ctxPref ?? !narrow;
   const [palette, setPalette] = useState(false);
   const [toast, setToast] = useState<{ message: string; undo?: () => void } | null>(null);
+  const [editingId, setEditingId] = useState("");
   const [version, setVersion] = useState(0); // bumped after writes so the open document reloads
   const closeToast = useCallback(() => setToast(null), []);
 
@@ -197,7 +202,7 @@ export default function App() {
     if (shown && project) document.title = `${shown.path} — ${project.name} · mieruka`;
   }, [shown, project]);
 
-  // Global shortcuts: ⌘K search, ⌘\ sidebar, ⌘⌥\ agent panel, J/K step through changes, ⌘Z undo a revert.
+  // Global shortcuts: ⌘K search, ⌘\ sidebar, ⌘⌥\ agent panel, E edit, J/K step through changes, ⌘Z undo a revert.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       const mod = e.metaKey || e.ctrlKey;
@@ -212,6 +217,9 @@ export default function App() {
         e.preventDefault();
         if (e.altKey) setCtxPref(!showCtx);
         else setShowSide((v) => !v);
+      } else if (!mod && !e.altKey && !isTyping(e) && shown && !offline && e.key === "e" && editingId !== shown.id) {
+        e.preventDefault();
+        setEditingId(shown.id);
       } else if (!mod && !isTyping(e) && shown && (e.key === "j" || e.key === "k")) {
         const ids = shown.blocks.filter((b) => b.change).map((b) => `block-${b.id}`);
         if (ids.length === 0) return;
@@ -222,7 +230,26 @@ export default function App() {
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [shown, showCtx, toast]);
+  }, [shown, showCtx, toast, offline, editingId]);
+
+  // Warn before closing the tab with unsaved edits.
+  useEffect(() => {
+    function onUnload(e: BeforeUnloadEvent) {
+      if (drafts.size > 0) e.preventDefault();
+    }
+    window.addEventListener("beforeunload", onUnload);
+    return () => window.removeEventListener("beforeunload", onUnload);
+  }, []);
+
+  const closeEditor = useCallback(() => setEditingId(""), []);
+  const onSaved = useCallback(
+    (message: string) => {
+      setToast({ message });
+      void refresh();
+      setVersion((v) => v + 1);
+    },
+    [refresh],
+  );
 
   if (!ws) return <div className="empty">Loading workspace…</div>;
 
@@ -250,7 +277,11 @@ export default function App() {
       )}
 
       <main className="main" id="doc" tabIndex={-1}>
-        {shown && project ? (
+        {meta && project && editingId === currentId ? (
+          <Suspense fallback={<div className="empty">Loading editor…</div>}>
+            <Editor key={meta.id} doc={meta} projectName={project.name} onClose={closeEditor} onSaved={onSaved} />
+          </Suspense>
+        ) : shown && project ? (
           <DocView
             doc={shown}
             projectName={project.name}
@@ -258,6 +289,7 @@ export default function App() {
             contextVisible={showCtx}
             onToggleContext={() => setCtxPref(!showCtx)}
             onMarkRead={onMarkRead}
+            onEdit={offline ? undefined : () => setEditingId(shown.id)}
             onAccept={accept}
             onRevert={revert}
             onOpenWiki={openWiki}

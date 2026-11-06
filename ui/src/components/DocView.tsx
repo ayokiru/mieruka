@@ -9,6 +9,7 @@ interface Props {
   contextVisible: boolean;
   onToggleContext: () => void;
   onMarkRead: () => void;
+  onEdit?: () => void;
   onAccept: (hunk: string) => void;
   onRevert: (hunk: string) => void;
   onOpenWiki: (name: string) => void;
@@ -46,6 +47,11 @@ export function DocView(props: Props) {
           <span className="sr-only">,</span> &nbsp;{doc.kind} · {doc.lines} lines
         </div>
         <div>
+          {props.onEdit && (
+            <button className="btn" onClick={props.onEdit} title="Edit (E)">
+              Edit
+            </button>
+          )}
           <button
             className="btn icon"
             aria-pressed={props.contextVisible}

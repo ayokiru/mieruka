@@ -39,6 +39,28 @@ export const revertHunk = (id: string, hunk: string) =>
   post(`/api/revert/${encodeURIComponent(id)}/${encodeURIComponent(hunk)}`);
 export const undoRevert = (id: string) => post(`/api/undo/${encodeURIComponent(id)}`);
 
+export async function loadSource(id: string): Promise<{ text: string; base: string }> {
+  const r = await fetch(`/api/source/${encodeURIComponent(id)}`);
+  if (!r.ok) throw new Error("Could not read the file");
+  return r.json();
+}
+
+export async function saveSource(id: string, text: string, base: string): Promise<{ text: string; base: string }> {
+  const r = await fetch(`/api/save/${encodeURIComponent(id)}`, {
+    method: "POST",
+    headers: { "X-Mieruka": "1", "Content-Type": "application/json" },
+    body: JSON.stringify({ text, base }),
+  });
+  if (!r.ok) throw new Error((await r.text()) || `Save failed (${r.status})`);
+  return r.json();
+}
+
+export async function renderPreview(text: string): Promise<string> {
+  const r = await fetch("/api/preview", { method: "POST", headers: { "X-Mieruka": "1" }, body: text });
+  if (!r.ok) throw new Error(String(r.status));
+  return r.text();
+}
+
 const rtf = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
 
 export function formatReadAt(ms: number): string {
