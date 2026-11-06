@@ -53,7 +53,11 @@ export function ContextPanel({ context, agent, issues, onAgent, onOpenDoc, onIss
         <b>{approx}{fmt(total)}</b>
         <span>tokens loaded at start</span>
       </div>
-      {context.approximate && <div className="note">Estimated: this agent has no public tokenizer.</div>}
+      {context.approximate && (
+        <div className="note">
+          {agent === "claude" ? "Estimated: Anthropic doesn't publish Claude's tokenizer." : "Estimated token counts."}
+        </div>
+      )}
 
       {context.sources.map((s) => {
         const skipped = s.tokens === null;
