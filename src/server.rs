@@ -63,6 +63,34 @@ async fn post_undo(State(app): State<Shared>, Path(id): Path<String>) -> Respons
     reply(workspace::undo(&snapshot(&app).await, &id))
 }
 
+async fn get_source(State(app): State<Shared>, Path(id): Path<String>) -> Response {
+    match workspace::source(&snapshot(&app).await, &id) {
+        Ok(s) => axum::Json(s).into_response(),
+        Err(e) => (StatusCode::NOT_FOUND, e.to_string()).into_response(),
+    }
+}
+
+#[derive(serde::Deserialize)]
+struct SaveBody {
+    text: String,
+    base: String,
+}
+
+async fn post_save(
+    State(app): State<Shared>,
+    Path(id): Path<String>,
+    axum::Json(body): axum::Json<SaveBody>,
+) -> Response {
+    match workspace::save(&snapshot(&app).await, &id, &body.text, &body.base) {
+        Ok(s) => axum::Json(s).into_response(),
+        Err(e) => (StatusCode::CONFLICT, e.to_string()).into_response(),
+    }
+}
+
+async fn post_preview(text: String) -> Response {
+    workspace::preview(&text).into_response()
+}
+
 fn reply(result: anyhow::Result<()>) -> Response {
     match result {
         Ok(()) => StatusCode::NO_CONTENT.into_response(),
@@ -125,6 +153,9 @@ pub async fn serve(roots: Vec<PathBuf>, port: u16, open_browser: bool) -> anyhow
         .route("/api/accept/{id}/{hunk}", post(post_accept))
         .route("/api/revert/{id}/{hunk}", post(post_revert))
         .route("/api/undo/{id}", post(post_undo))
+        .route("/api/source/{id}", get(get_source))
+        .route("/api/save/{id}", post(post_save))
+        .route("/api/preview", post(post_preview))
         .fallback(asset)
         .layer(middleware::from_fn_with_state(app.clone(), guard))
         .with_state(app);

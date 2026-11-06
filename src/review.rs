@@ -57,6 +57,12 @@ pub fn load(doc_id: &str, text: &str, parsed: &Parsed) -> Option<Review> {
     })
 }
 
+/// Edits saved in mieruka are reviewed by definition: the whole saved text becomes approved.
+pub fn approve(doc_id: &str, text: &str) -> anyhow::Result<()> {
+    let path = store("approved", doc_id).ok_or_else(|| anyhow::anyhow!("no home folder"))?;
+    write(&path, text)
+}
+
 fn same(a: &ParsedBlock, b: &ParsedBlock) -> bool {
     a.source.trim() == b.source.trim()
 }

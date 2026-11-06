@@ -309,3 +309,56 @@ pub fn undo(snap: &Snapshot, id: &str) -> anyhow::Result<()> {
     tracked(e)?;
     review::undo(id, &e.path)
 }
+
+#[derive(serde::Serialize)]
+pub struct Source {
+    pub text: String,
+    /// Version of the file on disk; a save must name it so it never overwrites newer edits.
+    pub base: String,
+}
+
+fn version(text: &str) -> String {
+    format!("{:x}", util::hash(text))
+}
+
+pub fn source(snap: &Snapshot, id: &str) -> anyhow::Result<Source> {
+    let e = get(snap, id)?;
+    Ok(Source {
+        text: e.text.clone(),
+        base: version(&e.text),
+    })
+}
+
+/// Write the editor text. Saving also marks the document as read and, if tracked, approved.
+pub fn save(snap: &Snapshot, id: &str, text: &str, base: &str) -> anyhow::Result<Source> {
+    let e = get(snap, id)?;
+    if version(&e.text) != base {
+        anyhow::bail!("the file changed on disk while you were editing");
+    }
+    // The editor works with \n; keep the file's own line endings.
+    let text = if e.text.contains("\r\n") {
+        text.replace("\r\n", "\n").replace('\n', "\r\n")
+    } else {
+        text.to_string()
+    };
+    std::fs::write(&e.path, &text)?;
+    if e.review.is_some() {
+        review::approve(id, &text)?;
+    }
+    let parsed = markdown::parse(&text);
+    let sources: Vec<&str> = parsed.blocks.iter().map(|b| b.source.as_str()).collect();
+    reads::mark(id, &sources)?;
+    Ok(Source {
+        base: version(&text),
+        text,
+    })
+}
+
+/// Rendered HTML for the editor preview, same renderer as the reader.
+pub fn preview(text: &str) -> String {
+    markdown::parse(text)
+        .blocks
+        .into_iter()
+        .map(|b| b.html)
+        .collect()
+}
