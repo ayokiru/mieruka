@@ -79,6 +79,7 @@ export function DocView(props: Props) {
                   </span>
                 </div>
               )}
+              {b.change === "changed" && <span className="sr-only">Changed since you read it:</span>}
               <div dangerouslySetInnerHTML={{ __html: b.html }} />
               {b.previousHtml && (
                 <div className="prev" aria-label="Before the change" dangerouslySetInnerHTML={{ __html: b.previousHtml }} />

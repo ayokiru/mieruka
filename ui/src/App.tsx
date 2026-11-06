@@ -29,7 +29,8 @@ function isTyping(e: KeyboardEvent) {
 function flash(id: string) {
   const el = document.getElementById(id);
   if (!el) return;
-  el.scrollIntoView({ behavior: "smooth", block: "center" });
+  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  el.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "center" });
   el.classList.remove("flash");
   void el.offsetWidth; // restart the animation
   el.classList.add("flash");
@@ -133,6 +134,7 @@ export default function App() {
 
   return (
     <div className="app">
+      <a className="skip-link" href="#doc">Skip to document</a>
       {showSide && (
         <>
           <div className="pane side" style={{ width: sideW }}>
@@ -154,7 +156,7 @@ export default function App() {
         </>
       )}
 
-      <main className="main">
+      <main className="main" id="doc" tabIndex={-1}>
         {doc ? (
           <DocView
             doc={doc}
