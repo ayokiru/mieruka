@@ -62,7 +62,7 @@ export function DocView(props: Props) {
               <span className="hint"> · J / K to step through</span>
             </span>
             <span>
-              <button className="btn primary" onClick={props.onMarkRead}>Mark as read</button>
+              <button className="btn" onClick={props.onMarkRead}>Mark as read</button>
             </span>
           </div>
         )}
