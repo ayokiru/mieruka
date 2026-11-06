@@ -6,6 +6,7 @@ interface Props {
   projectId: string;
   docId: string;
   unread: Set<string>;
+  offline: boolean;
   onSelectProject: (id: string) => void;
   onSelectDoc: (id: string) => void;
   onOpenSearch: () => void;
@@ -23,7 +24,7 @@ function moveFocus(e: KeyboardEvent<HTMLElement>) {
   items[Math.max(0, Math.min(items.length - 1, i + (e.key === "ArrowDown" ? 1 : -1)))].focus();
 }
 
-export function Sidebar({ workspace, projectId, docId, unread, onSelectProject, onSelectDoc, onOpenSearch }: Props) {
+export function Sidebar({ workspace, projectId, docId, unread, offline, onSelectProject, onSelectDoc, onOpenSearch }: Props) {
   const project = workspace.projects.find((p) => p.id === projectId)!;
   const docs = workspace.docs.filter((d) => d.projectId === projectId);
   const issueCount = workspace.issues.filter((i) => docs.some((d) => d.id === i.docId)).length;
@@ -32,6 +33,7 @@ export function Sidebar({ workspace, projectId, docId, unread, onSelectProject, 
   return (
     <nav aria-label="Projects and documents" onKeyDown={moveFocus}>
       <div className="brand"><i aria-hidden="true" />mieruka</div>
+      {offline && <div className="offline" role="status">Demo data: run the mieruka binary to see your files.</div>}
       <button className="search" onClick={onOpenSearch}>
         <span>Search all agent docs</span>
         <kbd className="mono">⌘K</kbd>

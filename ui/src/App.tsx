@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { mockWorkspace } from "./data/mock";
-import type { AgentId, Workspace } from "./data/types";
+import type { Doc, Workspace } from "./data/types";
+import { loadDoc, loadWorkspace, markRead } from "./data/api";
 import { Sidebar } from "./components/Sidebar";
 import { DocView } from "./components/DocView";
 import { ContextPanel } from "./components/ContextPanel";
@@ -9,6 +9,7 @@ import { CommandPalette } from "./components/CommandPalette";
 import { Toast } from "./components/Toast";
 
 const NARROW = 1200;
+const REFRESH_MS = 5000;
 
 function useNarrow() {
   const [narrow, setNarrow] = useState(() => window.innerWidth < NARROW);
@@ -37,11 +38,22 @@ function flash(id: string) {
   if (el.tabIndex >= -1) el.focus({ preventScroll: true });
 }
 
+// Instruction files first, CLAUDE.md / AGENTS.md before the rest.
+function firstDoc(ws: Workspace, projectId: string) {
+  const docs = ws.docs.filter((d) => d.projectId === projectId);
+  const rank = (p: string) => (/^(CLAUDE|AGENTS)\.md$/.test(p) ? 0 : 1);
+  return [...docs].sort(
+    (a, b) => Number(a.kind !== "instructions") - Number(b.kind !== "instructions") || rank(a.path) - rank(b.path),
+  )[0];
+}
+
 export default function App() {
-  const [ws, setWs] = useState<Workspace>(mockWorkspace);
-  const [projectId, setProjectId] = useState("winrice");
-  const [docId, setDocId] = useState("w-claude");
-  const [agent, setAgent] = useState<AgentId>("claude");
+  const [ws, setWs] = useState<Workspace | null>(null);
+  const [offline, setOffline] = useState(false);
+  const [projectId, setProjectId] = useState("");
+  const [docId, setDocId] = useState("");
+  const [doc, setDoc] = useState<Doc | null>(null);
+  const [agent, setAgent] = useState("claude");
   const [sideW, setSideW] = useState(248);
   const [ctxW, setCtxW] = useState(336);
   const [showSide, setShowSide] = useState(true);
@@ -49,19 +61,56 @@ export default function App() {
   const [ctxPref, setCtxPref] = useState<boolean | null>(null); // null = follow window width
   const showCtx = ctxPref ?? !narrow;
   const [palette, setPalette] = useState(false);
-  const [toast, setToast] = useState<{ message: string; undo: Workspace } | null>(null);
-
+  const [toast, setToast] = useState<{ message: string; undo: Doc } | null>(null);
   const closeToast = useCallback(() => setToast(null), []);
-  const doc = ws.docs.find((d) => d.id === docId)!;
-  const project = ws.projects.find((p) => p.id === projectId)!;
-  const docIssues = ws.issues.filter((i) => i.docId === docId);
-  const context = ws.contexts.find((c) => c.agent === agent)!;
-  const unread = useMemo(() => new Set(ws.docs.filter((d) => d.blocks.some((b) => b.change)).map((d) => d.id)), [ws]);
-  const projectIssues = ws.issues.filter((i) => ws.docs.find((d) => d.id === i.docId)?.projectId === projectId);
+
+  const refresh = useCallback(async () => {
+    const result = await loadWorkspace();
+    setWs(result.workspace);
+    setOffline(result.offline);
+  }, []);
+
+  useEffect(() => {
+    void refresh();
+    const timer = setInterval(() => {
+      if (document.visibilityState === "visible") void refresh();
+    }, REFRESH_MS);
+    window.addEventListener("focus", refresh);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener("focus", refresh);
+    };
+  }, [refresh]);
+
+  // The stored selection may point at something that disappeared; fall back to the first item.
+  const pid = ws?.projects.some((p) => p.id === projectId) ? projectId : (ws?.projects[0]?.id ?? "");
+  const currentId = ws?.docs.some((d) => d.id === docId) ? docId : ws ? (firstDoc(ws, pid)?.id ?? "") : "";
+  const meta = ws?.docs.find((d) => d.id === currentId);
+
+  // Reload the open document when it changes on disk or the selection changes.
+  useEffect(() => {
+    if (!currentId) return;
+    let live = true;
+    void loadDoc(currentId).then((d) => {
+      // Offline edits (accept/revert on the mock) must survive refreshes.
+      if (live) setDoc((prev) => (offline && prev?.id === d?.id ? prev : d));
+    });
+    return () => {
+      live = false;
+    };
+  }, [currentId, meta?.lines, meta?.changes, meta?.readAt, offline]);
+  const shown = doc && doc.id === currentId ? doc : null;
+
+  const project = ws?.projects.find((p) => p.id === pid);
+  const contexts = useMemo(() => ws?.contexts.filter((c) => c.projectId === pid) ?? [], [ws, pid]);
+  const context = contexts.find((c) => c.agent === agent) ?? contexts[0];
+  const docIssues = ws?.issues.filter((i) => i.docId === currentId) ?? [];
+  const projectIssues = ws?.issues.filter((i) => ws.docs.find((d) => d.id === i.docId)?.projectId === pid) ?? [];
+  const unread = useMemo(() => new Set(ws?.docs.filter((d) => d.changes > 0).map((d) => d.id)), [ws]);
 
   const openDoc = useCallback(
     (id: string) => {
-      const d = ws.docs.find((x) => x.id === id);
+      const d = ws?.docs.find((x) => x.id === id);
       if (!d) return;
       setProjectId(d.projectId);
       setDocId(d.id);
@@ -70,56 +119,57 @@ export default function App() {
     [ws],
   );
 
-  const updateBlocks = (fn: (b: Workspace["docs"][number]["blocks"][number]) => typeof b) =>
-    setWs((w) => ({ ...w, docs: w.docs.map((d) => (d.id === docId ? { ...d, blocks: d.blocks.map(fn) } : d)) }));
+  function editBlocks(fn: (b: Doc["blocks"][number]) => Doc["blocks"][number]) {
+    setDoc((d) => (d ? { ...d, blocks: d.blocks.map(fn) } : d));
+  }
 
   function accept(blockId: string) {
-    updateBlocks((b) => (b.id === blockId ? { ...b, change: undefined, previousHtml: undefined } : b));
+    editBlocks((b) => (b.id === blockId ? { ...b, change: undefined, previousHtml: undefined } : b));
   }
 
   function revert(blockId: string) {
-    setToast({ message: "Change reverted", undo: ws });
-    updateBlocks((b) =>
+    if (shown) setToast({ message: "Change reverted", undo: shown });
+    editBlocks((b) =>
       b.id === blockId ? { ...b, html: b.previousHtml ?? b.html, change: undefined, previousHtml: undefined } : b,
     );
   }
 
-  function markRead() {
-    setWs((w) => ({
-      ...w,
-      docs: w.docs.map((d) =>
-        d.id === docId
-          ? { ...d, readAt: "just now", blocks: d.blocks.map((b) => (b.change === "changed" ? { ...b, change: undefined } : b)) }
-          : d,
-      ),
-    }));
+  async function onMarkRead() {
+    if (!shown) return;
+    if (offline) {
+      editBlocks((b) => (b.change === "changed" ? { ...b, change: undefined } : b));
+      return;
+    }
+    await markRead(shown.id);
+    await refresh();
   }
 
   function openWiki(name: string) {
-    const target = ws.docs.find(
-      (d) => d.projectId === projectId && d.path.replace(/\.md$/i, "").split("/").pop()?.toLowerCase() === name.toLowerCase(),
+    const target = ws?.docs.find(
+      (d) =>
+        d.projectId === pid && d.path.replace(/\.md$/i, "").split("/").pop()?.toLowerCase() === name.toLowerCase(),
     );
     if (target) openDoc(target.id);
   }
 
   function showIssue(issueId: string) {
-    const issue = ws.issues.find((i) => i.id === issueId);
+    const issue = ws?.issues.find((i) => i.id === issueId);
     if (!issue) return;
     openDoc(issue.docId);
-    requestAnimationFrame(() => flash(`tip-${issue.id}`));
+    setTimeout(() => flash(`tip-${issue.id}`), 150);
   }
 
   useEffect(() => {
-    if (doc) document.title = `${doc.path} — ${project.name} · mieruka`;
-  }, [doc, project]);
+    if (shown && project) document.title = `${shown.path} — ${project.name} · mieruka`;
+  }, [shown, project]);
 
-  // Global shortcuts: ⌘K search, ⌘\ sidebar, ⌘⌥\ agent panel, J/K step through changes.
+  // Global shortcuts: ⌘K search, ⌘\ sidebar, ⌘⌥\ agent panel, J/K step through changes, ⌘Z undo a revert.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       const mod = e.metaKey || e.ctrlKey;
       if (mod && !e.shiftKey && e.key.toLowerCase() === "z" && toast && !isTyping(e)) {
         e.preventDefault();
-        setWs(toast.undo);
+        setDoc(toast.undo);
         setToast(null);
       } else if (mod && e.key.toLowerCase() === "k") {
         e.preventDefault();
@@ -128,8 +178,8 @@ export default function App() {
         e.preventDefault();
         if (e.altKey) setCtxPref(!showCtx);
         else setShowSide((v) => !v);
-      } else if (!mod && !isTyping(e) && (e.key === "j" || e.key === "k")) {
-        const ids = doc.blocks.filter((b) => b.change).map((b) => `block-${b.id}`);
+      } else if (!mod && !isTyping(e) && shown && (e.key === "j" || e.key === "k")) {
+        const ids = shown.blocks.filter((b) => b.change).map((b) => `block-${b.id}`);
         if (ids.length === 0) return;
         const current = ids.indexOf(document.activeElement?.id ?? "");
         const next = e.key === "j" ? (current + 1) % ids.length : (current - 1 + ids.length) % ids.length;
@@ -138,23 +188,25 @@ export default function App() {
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [doc, showCtx, toast]);
+  }, [shown, showCtx, toast]);
+
+  if (!ws) return <div className="empty">Loading workspace…</div>;
 
   return (
     <div className="app">
       <a className="skip-link" href="#doc">Skip to document</a>
-      {showSide && (
+      {showSide && project && (
         <>
           <div className="pane side" style={{ width: sideW }}>
             <Sidebar
               workspace={ws}
-              projectId={projectId}
-              docId={docId}
+              projectId={pid}
+              docId={currentId}
               unread={unread}
+              offline={offline}
               onSelectProject={(id) => {
                 setProjectId(id);
-                const first = ws.docs.find((d) => d.projectId === id);
-                if (first) setDocId(first.id);
+                setDocId(firstDoc(ws, id)?.id ?? "");
               }}
               onSelectDoc={openDoc}
               onOpenSearch={() => setPalette(true)}
@@ -165,36 +217,40 @@ export default function App() {
       )}
 
       <main className="main" id="doc" tabIndex={-1}>
-        {doc ? (
+        {shown && project ? (
           <DocView
-            doc={doc}
+            doc={shown}
             projectName={project.name}
             issues={docIssues}
             contextVisible={showCtx}
             onToggleContext={() => setCtxPref(!showCtx)}
-            onMarkRead={markRead}
+            onMarkRead={onMarkRead}
             onAccept={accept}
             onRevert={revert}
             onOpenWiki={openWiki}
             onIssue={showIssue}
           />
         ) : (
-          <div className="empty">This project has no agent docs yet.</div>
+          <div className="empty">No agent Markdown found in this project yet.</div>
         )}
       </main>
 
-      {showCtx && context && (
+      {showCtx && (
         <>
           <Splitter label="Resize agent panel" width={ctxW} min={280} max={480} direction={-1} onWidth={setCtxW} />
           <div className="pane ctx" style={{ width: ctxW }}>
-            <ContextPanel
-              context={context}
-              agent={agent}
-              issues={projectIssues}
-              onAgent={setAgent}
-              onOpenDoc={openDoc}
-              onIssue={showIssue}
-            />
+            {context ? (
+              <ContextPanel
+                contexts={contexts}
+                context={context}
+                issues={projectIssues}
+                onAgent={setAgent}
+                onOpenDoc={openDoc}
+                onIssue={showIssue}
+              />
+            ) : (
+              <div className="empty">Agents load nothing from here on their own. Open a project folder to see its context.</div>
+            )}
           </div>
         </>
       )}
@@ -204,7 +260,7 @@ export default function App() {
         <Toast
           message={toast.message}
           onUndo={() => {
-            setWs(toast.undo);
+            setDoc(toast.undo);
             setToast(null);
           }}
           onDone={closeToast}

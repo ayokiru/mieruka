@@ -1,5 +1,6 @@
 import type { MouseEvent } from "react";
 import type { Doc, Issue } from "../data/types";
+import { formatReadAt } from "../data/api";
 
 interface Props {
   doc: Doc;
@@ -21,11 +22,17 @@ export function DocView(props: Props) {
   // Links and issue marks live inside rendered HTML, so handle clicks here.
   function onReaderClick(e: MouseEvent<HTMLElement>) {
     const el = e.target as HTMLElement;
-    const wiki = el.closest<HTMLElement>("[data-wiki]");
+    const wiki = el.closest<HTMLElement>("a[data-wikilink], [data-wiki]");
     if (wiki) {
       e.preventDefault();
-      props.onOpenWiki(wiki.dataset.wiki!);
+      props.onOpenWiki(wiki.dataset.wiki ?? decodeURIComponent(wiki.getAttribute("href") ?? ""));
       return;
+    }
+    // Relative links point into the project; open them in mieruka instead of navigating away.
+    const link = el.closest<HTMLAnchorElement>("a[href]");
+    if (link && !/^[a-z]+:/i.test(link.getAttribute("href") ?? "")) {
+      e.preventDefault();
+      props.onOpenWiki((link.getAttribute("href") ?? "").split("#")[0]);
     }
     const mark = el.closest<HTMLElement>("mark[data-issue]");
     if (mark) props.onIssue(mark.dataset.issue!);
@@ -55,10 +62,10 @@ export function DocView(props: Props) {
       </header>
 
       <div className="doc-scroll">
-        {changed > 0 && doc.readAt && (
+        {changed > 0 && doc.readAt !== undefined && (
           <div className="notice" role="status">
             <span>
-              <strong>{changed} {changed === 1 ? "change" : "changes"}</strong> since you read this {doc.readAt}
+              <strong>{changed} {changed === 1 ? "change" : "changes"}</strong> since you read this {formatReadAt(doc.readAt)}
               <span className="hint"> · J / K to step through</span>
             </span>
             <span>
@@ -68,7 +75,7 @@ export function DocView(props: Props) {
         )}
 
         <article className="reader" onClick={onReaderClick}>
-          <h1>{doc.title}</h1>
+          {!doc.blocks[0]?.html.startsWith("<h1") && <h1>{doc.title}</h1>}
           {doc.summary && <div className="summary">{doc.summary}</div>}
           {doc.blocks.map((b) => (
             <section key={b.id} id={`block-${b.id}`} className={`block ${b.change ?? ""}`} tabIndex={b.change ? -1 : undefined}>
