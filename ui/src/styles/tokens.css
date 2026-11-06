@@ -1,0 +1,52 @@
+/* Color tokens from .claude/DESIGN.md §14. Theme follows the system. */
+:root {
+  color-scheme: light dark;
+  --font-ui: "IBM Plex Sans", -apple-system, "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+  --radius: 8px;
+  --fast: 150ms;
+
+  --bg: #f5f2eb;
+  --panel: #fbfaf7;
+  --raised: #ffffff;
+  --border: #e2ddd2;
+  --text: #1e1c22;
+  --muted: #5e5a53;
+  --faint: #6a665e;
+  --ink: #8a8479;
+  --indigo: #2f4c8f;
+  --indigo-bg: rgba(47, 76, 143, 0.08);
+  --btn: #4a66ae;
+  --gold: #7a5410;
+  --gold-bg: rgba(186, 140, 40, 0.12);
+  --red: #b4402f;
+  --red-bg: rgba(180, 64, 47, 0.08);
+  --shadow: 0 8px 28px rgba(30, 28, 34, 0.14);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #141317;
+    --panel: #1b1a1f;
+    --raised: #222128;
+    --border: #2c2a33;
+    --text: #ece8e1;
+    --muted: #a8a39a;
+    --faint: #918d85;
+    --ink: #77727d;
+    --indigo: #8ea4e8;
+    --indigo-bg: rgba(142, 164, 232, 0.12);
+    --btn: #4a62ae;
+    --gold: #d9b45a;
+    --gold-bg: rgba(217, 180, 90, 0.1);
+    --red: #e8806f;
+    --red-bg: rgba(232, 128, 111, 0.12);
+    --shadow: 0 10px 32px rgba(0, 0, 0, 0.5);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --fast: 0ms;
+  }
+}
