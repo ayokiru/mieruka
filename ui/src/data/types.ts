@@ -19,9 +19,11 @@ export interface Block {
   // Rendered, escaped HTML for one block. Issue ranges are wrapped in <mark data-issue="id">.
   html: string;
   change?: "changed" | "unreviewed";
-  // For unreviewed blocks: what the block looked like when last approved.
+  // Unreviewed blocks of one hunk are accepted or reverted together.
+  hunk?: string;
+  // Last block of a hunk: what the hunk looked like when last approved.
   previousHtml?: string;
-  changedAt?: string;
+  changedAt?: number; // unix ms
 }
 
 export interface DocMeta {
@@ -32,6 +34,7 @@ export interface DocMeta {
   lines: number;
   title: string;
   changes: number; // blocks changed since the last "Mark as read"
+  unreviewed: number; // hunks changed outside mieruka, not yet accepted
   readAt?: number; // unix ms
 }
 

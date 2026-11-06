@@ -28,7 +28,18 @@ export async function markRead(id: string): Promise<void> {
   await fetch(`/api/read/${encodeURIComponent(id)}`, { method: "POST", headers: { "X-Mieruka": "1" } });
 }
 
-const rtf = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" });
+async function post(path: string): Promise<void> {
+  const r = await fetch(path, { method: "POST", headers: { "X-Mieruka": "1" } });
+  if (!r.ok) throw new Error((await r.text()) || `Request failed (${r.status})`);
+}
+
+export const acceptHunk = (id: string, hunk: string) =>
+  post(`/api/accept/${encodeURIComponent(id)}/${encodeURIComponent(hunk)}`);
+export const revertHunk = (id: string, hunk: string) =>
+  post(`/api/revert/${encodeURIComponent(id)}/${encodeURIComponent(hunk)}`);
+export const undoRevert = (id: string) => post(`/api/undo/${encodeURIComponent(id)}`);
+
+const rtf = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
 
 export function formatReadAt(ms: number): string {
   const minutes = Math.round((ms - Date.now()) / 60000);

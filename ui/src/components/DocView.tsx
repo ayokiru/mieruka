@@ -9,15 +9,15 @@ interface Props {
   contextVisible: boolean;
   onToggleContext: () => void;
   onMarkRead: () => void;
-  onAccept: (blockId: string) => void;
-  onRevert: (blockId: string) => void;
+  onAccept: (hunk: string) => void;
+  onRevert: (hunk: string) => void;
   onOpenWiki: (name: string) => void;
   onIssue: (issueId: string) => void;
 }
 
 export function DocView(props: Props) {
   const { doc, issues, onAccept, onRevert } = props;
-  const changed = doc.blocks.filter((b) => b.change).length;
+  const changed = doc.blocks.filter((b) => b.change === "changed").length;
 
   // Links and issue marks live inside rendered HTML, so handle clicks here.
   function onReaderClick(e: MouseEvent<HTMLElement>) {
@@ -77,19 +77,19 @@ export function DocView(props: Props) {
         <article className="reader" onClick={onReaderClick}>
           {!doc.blocks[0]?.html.startsWith("<h1") && <h1>{doc.title}</h1>}
           {doc.summary && <div className="summary">{doc.summary}</div>}
-          {doc.blocks.map((b) => (
+          {doc.blocks.map((b, i) => (
             <section key={b.id} id={`block-${b.id}`} className={`block ${b.change ?? ""}`} tabIndex={b.change ? -1 : undefined}>
-              {b.change === "unreviewed" && (
+              {b.hunk && b.hunk !== doc.blocks[i - 1]?.hunk && (
                 <div className="change-head">
-                  <span>Unreviewed change · {b.changedAt}</span>
+                  <span>Unreviewed change{b.changedAt !== undefined && ` · ${formatReadAt(b.changedAt)}`}</span>
                   <span>
-                    <button className="btn" onClick={() => onRevert(b.id)}>Revert change</button>
-                    <button className="btn primary" onClick={() => onAccept(b.id)}>Accept change</button>
+                    <button className="btn" onClick={() => onRevert(b.hunk!)}>Revert change</button>
+                    <button className="btn primary" onClick={() => onAccept(b.hunk!)}>Accept change</button>
                   </span>
                 </div>
               )}
               {b.change === "changed" && <span className="sr-only">Changed since you read it:</span>}
-              <div dangerouslySetInnerHTML={{ __html: b.html }} />
+              {b.html && <div dangerouslySetInnerHTML={{ __html: b.html }} />}
               {b.previousHtml && (
                 <div className="prev" aria-label="Before the change" dangerouslySetInnerHTML={{ __html: b.previousHtml }} />
               )}

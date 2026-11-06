@@ -2,7 +2,7 @@ import { useEffect } from "react";
 
 interface Props {
   message: string;
-  onUndo: () => void;
+  onUndo?: () => void;
   onDone: () => void;
 }
 
@@ -15,7 +15,7 @@ export function Toast({ message, onUndo, onDone }: Props) {
   return (
     <div className="toast" role="status">
       <span>{message}</span>
-      <button className="btn" onClick={onUndo}>Undo</button>
+      {onUndo && <button className="btn" onClick={onUndo}>Undo</button>}
     </div>
   );
 }

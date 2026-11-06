@@ -1,7 +1,7 @@
 import type { AgentContext, Doc, DocMeta, Issue, Project, Workspace } from "./types";
 
 // Stand-in used when the UI runs without the Rust core.
-const data: { projects: Project[]; docs: (Omit<Doc, "changes" | "readAt"> & { readAt?: string })[]; issues: Issue[]; contexts: Omit<AgentContext, "projectId" | "label">[] } = {
+const data: { projects: Project[]; docs: (Omit<Doc, "changes" | "unreviewed" | "readAt"> & { readAt?: string })[]; issues: Issue[]; contexts: Omit<AgentContext, "projectId" | "label">[] } = {
   projects: [
     { id: "winrice", name: "winrice", root: "~/Projects/winrice" },
     { id: "pakwatch", name: "pakwatch", root: "~/Projects/pakwatch" },
@@ -28,7 +28,8 @@ const data: { projects: Project[]; docs: (Omit<Doc, "changes" | "readAt"> & { re
         {
           id: "b4",
           change: "unreviewed",
-          changedAt: "2 h ago",
+          hunk: "h1",
+          changedAt: Date.now() - 2 * 3_600_000,
           previousHtml: "<ul><li>Commit at any time.</li></ul>",
           html: "<ul><li>Commit with <code>TZ=UTC</code> so no timezone offset leaks.</li></ul>",
         },
@@ -177,8 +178,9 @@ const DAY = 86_400_000;
 export const mockDocs: Record<string, Doc> = Object.fromEntries(
   data.docs.map((d) => {
     const changes = d.blocks.filter((b) => b.change).length;
+    const unreviewed = new Set(d.blocks.map((b) => b.hunk).filter(Boolean)).size;
     const readAt = d.readAt ? Date.now() - Number(d.readAt) * DAY : undefined;
-    return [d.id, { ...d, changes, readAt }];
+    return [d.id, { ...d, changes, unreviewed, readAt }];
   }),
 );
 

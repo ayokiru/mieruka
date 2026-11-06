@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Doc, Workspace } from "./data/types";
-import { loadDoc, loadWorkspace, markRead } from "./data/api";
+import { acceptHunk, loadDoc, loadWorkspace, markRead, revertHunk, undoRevert } from "./data/api";
 import { Sidebar } from "./components/Sidebar";
 import { DocView } from "./components/DocView";
 import { ContextPanel } from "./components/ContextPanel";
@@ -61,7 +61,8 @@ export default function App() {
   const [ctxPref, setCtxPref] = useState<boolean | null>(null); // null = follow window width
   const showCtx = ctxPref ?? !narrow;
   const [palette, setPalette] = useState(false);
-  const [toast, setToast] = useState<{ message: string; undo: Doc } | null>(null);
+  const [toast, setToast] = useState<{ message: string; undo?: () => void } | null>(null);
+  const [version, setVersion] = useState(0); // bumped after writes so the open document reloads
   const closeToast = useCallback(() => setToast(null), []);
 
   const refresh = useCallback(async () => {
@@ -98,7 +99,7 @@ export default function App() {
     return () => {
       live = false;
     };
-  }, [currentId, meta?.lines, meta?.changes, meta?.readAt, offline]);
+  }, [currentId, meta?.lines, meta?.changes, meta?.unreviewed, meta?.readAt, offline, version]);
   const shown = doc && doc.id === currentId ? doc : null;
 
   const project = ws?.projects.find((p) => p.id === pid);
@@ -106,7 +107,6 @@ export default function App() {
   const context = contexts.find((c) => c.agent === agent) ?? contexts[0];
   const docIssues = ws?.issues.filter((i) => i.docId === currentId) ?? [];
   const projectIssues = ws?.issues.filter((i) => ws.docs.find((d) => d.id === i.docId)?.projectId === pid) ?? [];
-  const unread = useMemo(() => new Set(ws?.docs.filter((d) => d.changes > 0).map((d) => d.id)), [ws]);
 
   const openDoc = useCallback(
     (id: string) => {
@@ -123,15 +123,49 @@ export default function App() {
     setDoc((d) => (d ? { ...d, blocks: d.blocks.map(fn) } : d));
   }
 
-  function accept(blockId: string) {
-    editBlocks((b) => (b.id === blockId ? { ...b, change: undefined, previousHtml: undefined } : b));
+  async function write(action: () => Promise<void>) {
+    try {
+      await action();
+    } catch (e) {
+      setToast({ message: e instanceof Error ? e.message : String(e) });
+    }
+    await refresh();
+    setVersion((v) => v + 1);
   }
 
-  function revert(blockId: string) {
-    if (shown) setToast({ message: "Change reverted", undo: shown });
-    editBlocks((b) =>
-      b.id === blockId ? { ...b, html: b.previousHtml ?? b.html, change: undefined, previousHtml: undefined } : b,
-    );
+  function accept(hunk: string) {
+    if (!shown) return;
+    if (offline) {
+      editBlocks((b) => (b.hunk === hunk ? { ...b, change: undefined, hunk: undefined, previousHtml: undefined } : b));
+      return;
+    }
+    void write(() => acceptHunk(shown.id, hunk));
+  }
+
+  function revert(hunk: string) {
+    if (!shown) return;
+    const id = shown.id;
+    if (offline) {
+      const before = shown;
+      setToast({ message: "Change reverted", undo: () => setDoc(before) });
+      // Offline the mock only knows the previous text of the last block in a hunk.
+      setDoc({
+        ...shown,
+        blocks: shown.blocks.flatMap((b) =>
+          b.hunk !== hunk ? [b] : b.previousHtml ? [{ id: b.id, html: b.previousHtml }] : [],
+        ),
+      });
+      return;
+    }
+    void write(async () => {
+      await revertHunk(id, hunk);
+      setToast({ message: "Change reverted", undo: () => void write(() => undoRevert(id)) });
+    });
+  }
+
+  function undoToast() {
+    toast?.undo?.();
+    setToast(null);
   }
 
   async function onMarkRead() {
@@ -167,9 +201,9 @@ export default function App() {
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       const mod = e.metaKey || e.ctrlKey;
-      if (mod && !e.shiftKey && e.key.toLowerCase() === "z" && toast && !isTyping(e)) {
+      if (mod && !e.shiftKey && e.key.toLowerCase() === "z" && toast?.undo && !isTyping(e)) {
         e.preventDefault();
-        setDoc(toast.undo);
+        toast.undo();
         setToast(null);
       } else if (mod && e.key.toLowerCase() === "k") {
         e.preventDefault();
@@ -202,7 +236,6 @@ export default function App() {
               workspace={ws}
               projectId={pid}
               docId={currentId}
-              unread={unread}
               offline={offline}
               onSelectProject={(id) => {
                 setProjectId(id);
@@ -259,10 +292,7 @@ export default function App() {
       {toast && (
         <Toast
           message={toast.message}
-          onUndo={() => {
-            setDoc(toast.undo);
-            setToast(null);
-          }}
+          onUndo={toast.undo ? undoToast : undefined}
           onDone={closeToast}
         />
       )}

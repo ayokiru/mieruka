@@ -5,7 +5,6 @@ interface Props {
   workspace: Workspace;
   projectId: string;
   docId: string;
-  unread: Set<string>;
   offline: boolean;
   onSelectProject: (id: string) => void;
   onSelectDoc: (id: string) => void;
@@ -24,7 +23,7 @@ function moveFocus(e: KeyboardEvent<HTMLElement>) {
   items[Math.max(0, Math.min(items.length - 1, i + (e.key === "ArrowDown" ? 1 : -1)))].focus();
 }
 
-export function Sidebar({ workspace, projectId, docId, unread, offline, onSelectProject, onSelectDoc, onOpenSearch }: Props) {
+export function Sidebar({ workspace, projectId, docId, offline, onSelectProject, onSelectDoc, onOpenSearch }: Props) {
   const project = workspace.projects.find((p) => p.id === projectId)!;
   const docs = workspace.docs.filter((d) => d.projectId === projectId);
   const issueCount = workspace.issues.filter((i) => docs.some((d) => d.id === i.docId)).length;
@@ -59,9 +58,9 @@ export function Sidebar({ workspace, projectId, docId, unread, offline, onSelect
                 onClick={() => onSelectDoc(d.id)}
               >
                 <span className="name">{d.path}</span>
-                {unread.has(d.id) && (
-                  <span className="dot" title="Changed since you read it">
-                    <span className="sr-only">Changed since you read it</span>
+                {(d.unreviewed > 0 || d.changes > 0) && (
+                  <span className="dot" title={d.unreviewed > 0 ? "Unreviewed changes" : "Changed since you read it"}>
+                    <span className="sr-only">{d.unreviewed > 0 ? "Unreviewed changes" : "Changed since you read it"}</span>
                   </span>
                 )}
               </button>
