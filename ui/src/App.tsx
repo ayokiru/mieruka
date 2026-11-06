@@ -109,11 +109,19 @@ export default function App() {
     requestAnimationFrame(() => flash(`tip-${issue.id}`));
   }
 
+  useEffect(() => {
+    if (doc) document.title = `${doc.path} — ${project.name} · mieruka`;
+  }, [doc, project]);
+
   // Global shortcuts: ⌘K search, ⌘\ sidebar, ⌘⌥\ agent panel, J/K step through changes.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       const mod = e.metaKey || e.ctrlKey;
-      if (mod && e.key.toLowerCase() === "k") {
+      if (mod && !e.shiftKey && e.key.toLowerCase() === "z" && toast && !isTyping(e)) {
+        e.preventDefault();
+        setWs(toast.undo);
+        setToast(null);
+      } else if (mod && e.key.toLowerCase() === "k") {
         e.preventDefault();
         setPalette(true);
       } else if (mod && e.code === "Backslash") {
@@ -130,7 +138,7 @@ export default function App() {
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [doc, showCtx]);
+  }, [doc, showCtx, toast]);
 
   return (
     <div className="app">
