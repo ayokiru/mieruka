@@ -42,9 +42,31 @@ async fn get_doc(State(app): State<Shared>, Path(id): Path<String>) -> Response 
 }
 
 async fn post_read(State(app): State<Shared>, Path(id): Path<String>) -> Response {
-    match workspace::mark_read(&snapshot(&app).await, &id) {
+    reply(workspace::mark_read(&snapshot(&app).await, &id))
+}
+
+async fn post_accept(
+    State(app): State<Shared>,
+    Path((id, hunk)): Path<(String, String)>,
+) -> Response {
+    reply(workspace::accept(&snapshot(&app).await, &id, &hunk))
+}
+
+async fn post_revert(
+    State(app): State<Shared>,
+    Path((id, hunk)): Path<(String, String)>,
+) -> Response {
+    reply(workspace::revert(&snapshot(&app).await, &id, &hunk))
+}
+
+async fn post_undo(State(app): State<Shared>, Path(id): Path<String>) -> Response {
+    reply(workspace::undo(&snapshot(&app).await, &id))
+}
+
+fn reply(result: anyhow::Result<()>) -> Response {
+    match result {
         Ok(()) => StatusCode::NO_CONTENT.into_response(),
-        Err(e) => (StatusCode::BAD_REQUEST, e.to_string()).into_response(),
+        Err(e) => (StatusCode::CONFLICT, e.to_string()).into_response(),
     }
 }
 
@@ -100,6 +122,9 @@ pub async fn serve(roots: Vec<PathBuf>, port: u16, open_browser: bool) -> anyhow
         .route("/api/workspace", get(get_workspace))
         .route("/api/doc/{id}", get(get_doc))
         .route("/api/read/{id}", post(post_read))
+        .route("/api/accept/{id}/{hunk}", post(post_accept))
+        .route("/api/revert/{id}/{hunk}", post(post_revert))
+        .route("/api/undo/{id}", post(post_undo))
         .fallback(asset)
         .layer(middleware::from_fn_with_state(app.clone(), guard))
         .with_state(app);

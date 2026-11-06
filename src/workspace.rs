@@ -2,14 +2,18 @@
 
 use crate::checks::{self, CheckedDoc};
 use crate::model::*;
-use crate::{context, discover, markdown, reads, util};
+use crate::{context, discover, markdown, reads, review, util};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 pub struct Entry {
     pub meta: DocMeta,
     pub path: PathBuf,
+    pub text: String,
     pub parsed: markdown::Parsed,
+    /// Instructions and memory are tracked for unreviewed changes.
+    pub review: Option<review::Review>,
+    pub modified: Option<u64>,
 }
 
 pub struct Snapshot {
@@ -24,10 +28,22 @@ fn escape(s: &str) -> String {
         .replace('"', "&quot;")
 }
 
-fn entry(path: PathBuf, kind: DocKind, project_id: &str, base: Option<&Path>) -> Option<Entry> {
+fn modified(path: &Path) -> Option<u64> {
+    let t = std::fs::metadata(path).ok()?.modified().ok()?;
+    Some(t.duration_since(std::time::UNIX_EPOCH).ok()?.as_millis() as u64)
+}
+
+fn entry(
+    path: PathBuf,
+    kind: DocKind,
+    tracked: bool,
+    project_id: &str,
+    base: Option<&Path>,
+) -> Option<Entry> {
     let text = util::read(&path)?;
     let parsed = markdown::parse(&text);
     let id = util::id_for(&path);
+    let review = tracked.then(|| review::load(&id, &text, &parsed)).flatten();
     let sources: Vec<&str> = parsed.blocks.iter().map(|b| b.source.as_str()).collect();
     let state = reads::state(&id, &sources);
     let name = path
@@ -42,9 +58,17 @@ fn entry(path: PathBuf, kind: DocKind, project_id: &str, base: Option<&Path>) ->
         lines: text.lines().count(),
         title: parsed.title.clone().unwrap_or(name),
         changes: state.changed.len(),
+        unreviewed: review.as_ref().map_or(0, |r| r.hunks.len()),
         read_at: state.read_at,
     };
-    Some(Entry { meta, path, parsed })
+    Some(Entry {
+        meta,
+        modified: modified(&path),
+        path,
+        text,
+        parsed,
+        review,
+    })
 }
 
 pub fn build(roots: &[PathBuf]) -> Snapshot {
@@ -66,16 +90,22 @@ pub fn build(roots: &[PathBuf]) -> Snapshot {
             root: util::display(root, None),
         });
 
-        let mut found = discover::project_docs(root);
-        found.extend(discover::memory_docs(root));
+        let mut found: Vec<(discover::Found, bool)> = discover::project_docs(root)
+            .into_iter()
+            .map(|f| {
+                let tracked = f.kind == DocKind::Instructions;
+                (f, tracked)
+            })
+            .collect();
+        found.extend(discover::memory_docs(root).into_iter().map(|f| (f, true)));
         let mut ids = Vec::new();
-        for f in found {
+        for (f, tracked) in found {
             let base = if f.path.starts_with(root) {
                 Some(root.as_path())
             } else {
                 None
             };
-            if let Some(e) = entry(f.path, f.kind, &pid, base) {
+            if let Some(e) = entry(f.path, f.kind, tracked, &pid, base) {
                 ids.push(e.meta.id.clone());
                 order.push(e.meta.id.clone());
                 docs.insert(e.meta.id.clone(), e);
@@ -134,7 +164,8 @@ pub fn build(roots: &[PathBuf]) -> Snapshot {
             root: "~".into(),
         });
         for f in global {
-            if let Some(e) = entry(f.path, f.kind, "home", None) {
+            let tracked = f.kind == DocKind::Instructions;
+            if let Some(e) = entry(f.path, f.kind, tracked, "home", None) {
                 order.push(e.meta.id.clone());
                 docs.entry(e.meta.id.clone()).or_insert(e);
             }
@@ -167,7 +198,7 @@ pub fn doc(snap: &Snapshot, id: &str) -> Option<Doc> {
         .iter()
         .filter(|i| i.doc_id == id)
         .collect();
-    let blocks = e
+    let mut blocks: Vec<Block> = e
         .parsed
         .blocks
         .iter()
@@ -198,20 +229,83 @@ pub fn doc(snap: &Snapshot, id: &str) -> Option<Doc> {
                 id: block_id,
                 html,
                 change,
+                hunk: None,
+                previous_html: None,
+                changed_at: None,
             }
         })
         .collect();
+    if let Some(r) = &e.review {
+        mark_unreviewed(&mut blocks, r, e.modified);
+    }
     Some(Doc {
         meta: e.meta.clone(),
         blocks,
     })
 }
 
-pub fn mark_read(snap: &Snapshot, id: &str) -> anyhow::Result<()> {
-    let e = snap
-        .docs
+/// Mark hunk blocks as unreviewed; a pure deletion gets an empty block that only shows the old text.
+fn mark_unreviewed(blocks: &mut Vec<Block>, r: &review::Review, modified: Option<u64>) {
+    for h in r.hunks.iter().rev() {
+        let previous: String = r.approved.blocks[h.old.clone()]
+            .iter()
+            .map(|b| b.html.as_str())
+            .collect();
+        let previous = (!previous.is_empty()).then_some(previous);
+        if h.new.is_empty() {
+            blocks.insert(
+                h.new.start,
+                Block {
+                    id: format!("gone-{}", h.id),
+                    html: String::new(),
+                    change: Some("unreviewed"),
+                    hunk: Some(h.id.clone()),
+                    previous_html: previous,
+                    changed_at: modified,
+                },
+            );
+            continue;
+        }
+        for i in h.new.clone() {
+            let b = &mut blocks[i];
+            b.change = Some("unreviewed");
+            b.hunk = Some(h.id.clone());
+            b.changed_at = modified;
+        }
+        blocks[h.new.end - 1].previous_html = previous;
+    }
+}
+
+fn get<'a>(snap: &'a Snapshot, id: &str) -> anyhow::Result<&'a Entry> {
+    snap.docs
         .get(id)
-        .ok_or_else(|| anyhow::anyhow!("unknown document"))?;
+        .ok_or_else(|| anyhow::anyhow!("unknown document"))
+}
+
+pub fn mark_read(snap: &Snapshot, id: &str) -> anyhow::Result<()> {
+    let e = get(snap, id)?;
     let sources: Vec<&str> = e.parsed.blocks.iter().map(|b| b.source.as_str()).collect();
     reads::mark(id, &sources)
+}
+
+fn tracked(e: &Entry) -> anyhow::Result<&review::Review> {
+    e.review
+        .as_ref()
+        .ok_or_else(|| anyhow::anyhow!("this document is not tracked"))
+}
+
+pub fn accept(snap: &Snapshot, id: &str, hunk: &str) -> anyhow::Result<()> {
+    let e = get(snap, id)?;
+    review::accept(id, tracked(e)?, &e.text, &e.parsed, hunk)
+}
+
+pub fn revert(snap: &Snapshot, id: &str, hunk: &str) -> anyhow::Result<()> {
+    let e = get(snap, id)?;
+    review::revert(id, &e.path, tracked(e)?, &e.text, &e.parsed, hunk)
+}
+
+pub fn undo(snap: &Snapshot, id: &str) -> anyhow::Result<()> {
+    let e = get(snap, id)?;
+    tracked(e)?;
+    review::undo(id, &e.path)
 }

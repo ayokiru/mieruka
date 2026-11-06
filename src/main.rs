@@ -4,6 +4,7 @@ mod discover;
 mod markdown;
 mod model;
 mod reads;
+mod review;
 mod server;
 mod util;
 mod workspace;

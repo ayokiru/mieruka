@@ -41,6 +41,15 @@ pub struct Block {
     pub html: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub change: Option<&'static str>,
+    /// Unreviewed blocks: the hunk they belong to (blocks of one hunk are accepted together).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hunk: Option<String>,
+    /// Last block of a hunk: what the hunk looked like when last approved.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub previous_html: Option<String>,
+    /// File modification time, unix ms.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub changed_at: Option<u64>,
 }
 
 #[derive(Serialize, Clone, Debug)]
@@ -53,6 +62,8 @@ pub struct DocMeta {
     pub lines: usize,
     pub title: String,
     pub changes: usize,
+    /// Hunks changed outside mieruka since the last accept (tracked files only).
+    pub unreviewed: usize,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub read_at: Option<u64>,
 }
