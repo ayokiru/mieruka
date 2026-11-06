@@ -37,11 +37,10 @@ export function Sidebar({ workspace, projectId, docId, unread, onSelectProject, 
         <kbd className="mono">⌘K</kbd>
       </button>
 
-      <div className="group-title">Project</div>
-      <button className="nav-item project" aria-current="true">
-        <span className="name">{project.name}</span>
+      <div className="project-head">
+        <h2>{project.name}</h2>
         {issueCount > 0 && <span className="count-issues">{issueCount} issues</span>}
-      </button>
+      </div>
 
       {KINDS.map((kind) => {
         const list = docs.filter((d) => d.kind === kind);

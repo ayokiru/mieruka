@@ -39,15 +39,17 @@ export function DocView(props: Props) {
           <span className="sr-only">,</span> &nbsp;{doc.kind} · {doc.lines} lines
         </div>
         <div>
-          <button className="btn">Edit</button>
           <button
             className="btn icon"
             aria-pressed={props.contextVisible}
+            aria-label="Agent panel"
             title={props.contextVisible ? "Hide agent panel (⌘⌥\\)" : "Show agent panel (⌘⌥\\)"}
             onClick={props.onToggleContext}
           >
-            <span aria-hidden="true">⇥</span>
-            <span className="sr-only">Agent panel</span>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
+              <rect x="1.75" y="2.75" width="12.5" height="10.5" rx="2" />
+              <line x1="10" y1="3" x2="10" y2="13" />
+            </svg>
           </button>
         </div>
       </header>

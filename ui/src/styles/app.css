@@ -55,6 +55,8 @@ code, .mono { font-family: var(--font-mono); }
 .nav-item[aria-current="page"] { background: var(--indigo-bg); color: var(--text); }
 .nav-item .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .project { color: var(--text); font-weight: 500; }
+.project-head { display: flex; justify-content: space-between; align-items: baseline; margin: 16px 8px 0; }
+.project-head h2 { font-size: 14px; font-weight: 600; margin: 0; }
 .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--gold); flex: none; }
 .count-issues { color: var(--red); font-size: 12px; }
 
