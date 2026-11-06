@@ -1,7 +1,7 @@
-import type { Workspace } from "./types";
+import type { AgentContext, Doc, DocMeta, Issue, Project, Workspace } from "./types";
 
-// Stand-in until the Rust core serves a real workspace.
-export const mockWorkspace: Workspace = {
+// Stand-in used when the UI runs without the Rust core.
+const data: { projects: Project[]; docs: (Omit<Doc, "changes" | "readAt"> & { readAt?: string })[]; issues: Issue[]; contexts: Omit<AgentContext, "projectId" | "label">[] } = {
   projects: [
     { id: "winrice", name: "winrice", root: "~/Projects/winrice" },
     { id: "pakwatch", name: "pakwatch", root: "~/Projects/pakwatch" },
@@ -16,7 +16,7 @@ export const mockWorkspace: Workspace = {
       lines: 142,
       title: "winrice",
       summary: "Rust CLI: capture, diff, apply and rollback of the whole Windows look.",
-      readAt: "yesterday at 18:40",
+      readAt: "1",
       blocks: [
         { id: "b1", html: "<h2>Rules</h2>" },
         { id: "b2", html: "<ul><li>Code comments: English only, few and basic.</li></ul>" },
@@ -96,7 +96,7 @@ export const mockWorkspace: Workspace = {
       kind: "notes",
       lines: 88,
       title: "Windows test plan",
-      readAt: "2 days ago",
+      readAt: "2",
       blocks: [
         { id: "t1", html: "<h2>Capture</h2>" },
         { id: "t2", change: "changed", html: "<p>Run <code>winrice capture test</code> and check <code>setup.toml</code>.</p>" },
@@ -140,12 +140,12 @@ export const mockWorkspace: Workspace = {
       dir: "winrice/src",
       approximate: true,
       sources: [
-        { path: "~/.claude/CLAUDE.md", how: "user · always", tokens: 1200 },
-        { path: "winrice/CLAUDE.md", how: "project · always", tokens: 3400, docId: "w-claude" },
-        { path: "↳ @AGENTS.md", how: "imported on line 3", tokens: 800, docId: "w-agents" },
-        { path: "src/CLAUDE.md", how: "nested · when files in src/ are read", tokens: 400, docId: "w-src" },
-        { path: "8 skills", how: "descriptions only", tokens: 600 },
-        { path: ".cursor/rules/rust.mdc", how: "not read by Claude Code", tokens: null },
+        { path: "~/.claude/CLAUDE.md", how: "user · always", tokens: 1200, onDemand: false },
+        { path: "winrice/CLAUDE.md", how: "project · always", tokens: 3400, docId: "w-claude", onDemand: false },
+        { path: "↳ @AGENTS.md", how: "imported on line 3", tokens: 800, docId: "w-agents", onDemand: false },
+        { path: "src/CLAUDE.md", how: "nested · when files in src/ are read", tokens: 400, docId: "w-src", onDemand: true },
+        { path: "8 skills", how: "descriptions only", tokens: 600, onDemand: false },
+        { path: ".cursor/rules/rust.mdc", how: "not read by Claude Code", tokens: null, onDemand: false },
       ],
     },
     {
@@ -153,9 +153,9 @@ export const mockWorkspace: Workspace = {
       dir: "winrice/src",
       approximate: false,
       sources: [
-        { path: "~/.codex/AGENTS.md", how: "user · always", tokens: 700 },
-        { path: "winrice/AGENTS.md", how: "project · always", tokens: 790, docId: "w-agents" },
-        { path: "winrice/CLAUDE.md", how: "not read by Codex", tokens: null, docId: "w-claude" },
+        { path: "~/.codex/AGENTS.md", how: "user · always", tokens: 700, onDemand: false },
+        { path: "winrice/AGENTS.md", how: "project · always", tokens: 790, docId: "w-agents", onDemand: false },
+        { path: "winrice/CLAUDE.md", how: "not read by Codex", tokens: null, docId: "w-claude", onDemand: false },
       ],
     },
     {
@@ -163,10 +163,28 @@ export const mockWorkspace: Workspace = {
       dir: "winrice/src",
       approximate: false,
       sources: [
-        { path: ".cursor/rules/rust.mdc", how: "glob src/**/*.rs", tokens: 520 },
-        { path: "winrice/AGENTS.md", how: "project · always", tokens: 790, docId: "w-agents" },
-        { path: "winrice/CLAUDE.md", how: "symlinked to AGENTS.md · counted twice", tokens: 790, docId: "w-claude" },
+        { path: ".cursor/rules/rust.mdc", how: "glob src/**/*.rs", tokens: 520, onDemand: false },
+        { path: "winrice/AGENTS.md", how: "project · always", tokens: 790, docId: "w-agents", onDemand: false },
+        { path: "winrice/CLAUDE.md", how: "symlinked to AGENTS.md · counted twice", tokens: 790, docId: "w-claude", onDemand: false },
       ],
     },
   ],
+};
+
+const LABELS: Record<string, string> = { claude: "Claude Code", codex: "Codex", cursor: "Cursor" };
+const DAY = 86_400_000;
+
+export const mockDocs: Record<string, Doc> = Object.fromEntries(
+  data.docs.map((d) => {
+    const changes = d.blocks.filter((b) => b.change).length;
+    const readAt = d.readAt ? Date.now() - Number(d.readAt) * DAY : undefined;
+    return [d.id, { ...d, changes, readAt }];
+  }),
+);
+
+export const mockWorkspace: Workspace = {
+  projects: data.projects,
+  docs: Object.values(mockDocs).map(({ blocks: _b, summary: _s, ...meta }) => meta as DocMeta),
+  issues: data.issues,
+  contexts: data.contexts.map((c) => ({ ...c, projectId: "winrice", label: LABELS[c.agent] })),
 };

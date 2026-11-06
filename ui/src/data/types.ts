@@ -1,12 +1,11 @@
-// Shapes the Rust core will serve; the mock data uses the same ones.
+// Shapes served by the Rust core (src/model.rs).
 
 export type DocKind = "instructions" | "plans" | "notes";
-export type AgentId = "claude" | "codex" | "cursor";
 export type Severity = "error" | "warning" | "info";
 
 export interface Issue {
   id: string;
-  rule: string; // e.g. "conflict", "stale-path"
+  rule: string; // e.g. "broken-import", "stale-path"
   title: string; // short label shown in bold
   message: string; // what is wrong and how to fix it
   severity: Severity;
@@ -17,8 +16,7 @@ export interface Issue {
 
 export interface Block {
   id: string;
-  // Rendered HTML for one block (heading, paragraph, list, code...).
-  // Issue ranges are wrapped in <mark data-issue="id">.
+  // Rendered, escaped HTML for one block. Issue ranges are wrapped in <mark data-issue="id">.
   html: string;
   change?: "changed" | "unreviewed";
   // For unreviewed blocks: what the block looked like when last approved.
@@ -26,16 +24,20 @@ export interface Block {
   changedAt?: string;
 }
 
-export interface Doc {
+export interface DocMeta {
   id: string;
   projectId: string;
   path: string;
   kind: DocKind;
   lines: number;
   title: string;
+  changes: number; // blocks changed since the last "Mark as read"
+  readAt?: number; // unix ms
+}
+
+export interface Doc extends DocMeta {
   summary?: string;
   blocks: Block[];
-  readAt?: string; // when the user last marked it read
 }
 
 export interface Project {
@@ -46,13 +48,16 @@ export interface Project {
 
 export interface ContextSource {
   path: string;
-  how: string; // why the agent loads it
-  tokens: number | null; // null = not loaded
+  how: string; // why the agent loads it, or why not
+  tokens: number | null; // null = not read
+  onDemand: boolean; // loaded later, not at session start
   docId?: string;
 }
 
 export interface AgentContext {
-  agent: AgentId;
+  agent: string;
+  label: string;
+  projectId: string;
   dir: string;
   approximate: boolean;
   sources: ContextSource[];
@@ -60,16 +65,10 @@ export interface AgentContext {
 
 export interface Workspace {
   projects: Project[];
-  docs: Doc[];
+  docs: DocMeta[];
   issues: Issue[];
   contexts: AgentContext[];
 }
-
-export const AGENTS: { id: AgentId; label: string }[] = [
-  { id: "claude", label: "Claude Code" },
-  { id: "codex", label: "Codex" },
-  { id: "cursor", label: "Cursor" },
-];
 
 export const KIND_LABEL: Record<DocKind, string> = {
   instructions: "Instructions",
