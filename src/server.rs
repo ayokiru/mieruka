@@ -14,7 +14,13 @@ use std::sync::Arc;
 
 #[derive(RustEmbed)]
 #[folder = "ui/dist"]
+#[allow_missing = true]
 struct Assets;
+
+const NO_UI: &str = "<!doctype html><meta charset=utf-8><title>mieruka</title>\
+<p style=\"font:16px system-ui;margin:3em\">This build has no web UI. Build it with \
+<code>cd ui &amp;&amp; npm ci &amp;&amp; npm run build</code>, then <code>cargo build</code> again. \
+The <code>check</code> and <code>context</code> commands work without it.</p>";
 
 struct App {
     roots: Vec<PathBuf>,
@@ -109,6 +115,9 @@ async fn asset(uri: axum::http::Uri) -> Response {
                 Body::from(file.data),
             )
                 .into_response()
+        }
+        None if path == "index.html" || !path.contains('.') => {
+            ([(header::CONTENT_TYPE, "text/html; charset=utf-8")], NO_UI).into_response()
         }
         None => StatusCode::NOT_FOUND.into_response(),
     }
