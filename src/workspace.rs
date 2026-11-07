@@ -33,6 +33,37 @@ fn modified(path: &Path) -> Option<u64> {
     Some(t.duration_since(std::time::UNIX_EPOCH).ok()?.as_millis() as u64)
 }
 
+/// Turn `@path` imports into links the UI opens in place. Text inside code or links stays as is.
+fn link_imports(html: &str, paths: &[&str]) -> String {
+    let mut out = html.to_string();
+    for p in paths {
+        let needle = format!("@{}", escape(p));
+        let mut from = 0;
+        while let Some(rel) = out[from..].find(&needle) {
+            let at = from + rel;
+            let end = at + needle.len();
+            let before = &out[..at];
+            let open = |tag: &str, close: &str| {
+                before
+                    .rfind(tag)
+                    .is_some_and(|o| !before[o..].contains(close))
+            };
+            let whole = !out[end..]
+                .chars()
+                .next()
+                .is_some_and(|c| c.is_alphanumeric() || "/_-".contains(c));
+            if open("<code", "</code>") || open("<a ", "</a>") || !whole {
+                from = end;
+                continue;
+            }
+            let link = format!("<a href=\"{}\" class=\"import\">{needle}</a>", escape(p));
+            out.replace_range(at..end, &link);
+            from = at + link.len();
+        }
+    }
+    out
+}
+
 fn entry(
     path: PathBuf,
     kind: DocKind,
@@ -215,7 +246,14 @@ pub fn doc(snap: &Snapshot, id: &str) -> Option<Doc> {
         .enumerate()
         .map(|(i, b)| {
             let block_id = format!("b{i}");
-            let mut html = b.html.clone();
+            let imports: Vec<&str> = e
+                .parsed
+                .imports
+                .iter()
+                .filter(|(line, _)| (b.start..=b.end).contains(line))
+                .map(|(_, p)| p.as_str())
+                .collect();
+            let mut html = link_imports(&b.html, &imports);
             for issue in issues.iter().filter(|x| x.block_id == block_id) {
                 let Some(needle) = &issue.needle else {
                     continue;
@@ -371,4 +409,18 @@ pub fn preview(text: &str) -> String {
         .into_iter()
         .map(|b| b.html)
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::link_imports;
+
+    #[test]
+    fn links_imports_outside_code() {
+        let html = "<p>See @docs/a.md. Not <code>@docs/a.md</code> or @docs/a.mdx</p>";
+        assert_eq!(
+            link_imports(html, &["docs/a.md"]),
+            "<p>See <a href=\"docs/a.md\" class=\"import\">@docs/a.md</a>. Not <code>@docs/a.md</code> or @docs/a.mdx</p>"
+        );
+    }
 }
