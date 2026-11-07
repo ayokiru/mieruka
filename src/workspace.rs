@@ -81,6 +81,11 @@ fn entry(
         .file_name()
         .map(|n| n.to_string_lossy().into_owned())
         .unwrap_or_default();
+    let undo_steps = if review.is_some() {
+        review::undo_depth(&id)
+    } else {
+        0
+    };
     let meta = DocMeta {
         id,
         project_id: project_id.to_string(),
@@ -90,6 +95,7 @@ fn entry(
         title: parsed.title.clone().unwrap_or(name),
         changes: state.changed.len(),
         unreviewed: review.as_ref().map_or(0, |r| r.hunks.len()),
+        undo_steps,
         read_at: state.read_at,
     };
     Some(Entry {
@@ -355,7 +361,7 @@ pub fn revert(snap: &Snapshot, id: &str, hunk: &str) -> anyhow::Result<()> {
 pub fn undo(snap: &Snapshot, id: &str) -> anyhow::Result<()> {
     let e = get(snap, id)?;
     tracked(e)?;
-    review::undo(id, &e.path)
+    review::undo(id, &e.path, &e.text)
 }
 
 #[derive(serde::Serialize)]

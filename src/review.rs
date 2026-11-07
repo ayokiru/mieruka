@@ -3,6 +3,7 @@
 
 use crate::markdown::{self, Parsed, ParsedBlock};
 use crate::util;
+use serde::{Deserialize, Serialize};
 use std::ops::Range;
 use std::path::{Path, PathBuf};
 
@@ -193,7 +194,46 @@ pub fn accept(
     write(&path, &next)
 }
 
-/// Put the approved text of one hunk back into the file. The previous text is kept for one undo.
+/// One revert, kept so it can be undone: the file text before and right after it.
+#[derive(Serialize, Deserialize)]
+struct Step {
+    before: String,
+    after: String,
+}
+
+const UNDO_LIMIT: usize = 50;
+
+fn undo_file(doc_id: &str) -> Option<PathBuf> {
+    Some(
+        util::home()?
+            .join(".mieruka")
+            .join("undo")
+            .join(format!("{doc_id}.json")),
+    )
+}
+
+fn load_steps(doc_id: &str) -> Vec<Step> {
+    undo_file(doc_id)
+        .and_then(|p| util::read(&p))
+        .and_then(|t| serde_json::from_str(&t).ok())
+        .unwrap_or_default()
+}
+
+fn save_steps(doc_id: &str, steps: &[Step]) -> anyhow::Result<()> {
+    let path = undo_file(doc_id).ok_or_else(|| anyhow::anyhow!("no home folder"))?;
+    if steps.is_empty() {
+        let _ = std::fs::remove_file(path);
+        return Ok(());
+    }
+    write(&path, &serde_json::to_string(steps)?)
+}
+
+/// How many reverts of this document can be undone.
+pub fn undo_depth(doc_id: &str) -> usize {
+    load_steps(doc_id).len()
+}
+
+/// Put the approved text of one hunk back into the file, remembering the step for undo.
 pub fn revert(
     doc_id: &str,
     file: &Path,
@@ -213,19 +253,37 @@ pub fn revert(
             h.old.clone(),
         ),
     );
-    let backup = store("undo", doc_id).ok_or_else(|| anyhow::anyhow!("no home folder"))?;
-    write(&backup, text)?;
+    let mut steps = load_steps(doc_id);
+    steps.push(Step {
+        before: text.to_string(),
+        after: next.clone(),
+    });
+    let excess = steps.len().saturating_sub(UNDO_LIMIT);
+    steps.drain(..excess);
+    save_steps(doc_id, &steps)?;
     std::fs::write(file, next)?;
     Ok(())
 }
 
-/// Undo the last revert of this document.
-pub fn undo(doc_id: &str, file: &Path) -> anyhow::Result<()> {
-    let backup = store("undo", doc_id).ok_or_else(|| anyhow::anyhow!("no home folder"))?;
-    let text = util::read(&backup).ok_or_else(|| anyhow::anyhow!("nothing to undo"))?;
-    std::fs::write(file, text)?;
-    std::fs::remove_file(backup)?;
-    Ok(())
+/// Take the last step off the stack, but only while the file still matches what the revert wrote.
+fn pop_step(steps: &mut Vec<Step>, current: &str) -> anyhow::Result<String> {
+    let last = steps
+        .last()
+        .ok_or_else(|| anyhow::anyhow!("nothing to undo"))?;
+    if last.after != current {
+        anyhow::bail!(
+            "the file changed after the revert, so undoing it would overwrite newer edits"
+        );
+    }
+    Ok(steps.pop().map(|s| s.before).unwrap_or_default())
+}
+
+/// Undo the most recent revert of this document. Call again to go further back.
+pub fn undo(doc_id: &str, file: &Path, current: &str) -> anyhow::Result<()> {
+    let mut steps = load_steps(doc_id);
+    let before = pop_step(&mut steps, current)?;
+    std::fs::write(file, before)?;
+    save_steps(doc_id, &steps)
 }
 
 #[cfg(test)]
@@ -264,6 +322,25 @@ mod tests {
     const OLD: &str = "# Title\n\nKeep this.\n\n- a\n- b\n\nRemoved later.\n\nEnd.\n";
     const NEW: &str =
         "# Title\n\nKeep this.\n\n- a\n- b\n- c\n\nAdded paragraph.\n\nEnd.\n\nTail.\n";
+
+    #[test]
+    fn undo_goes_back_step_by_step_and_never_over_newer_edits() {
+        let mut steps = vec![
+            Step {
+                before: "t0".into(),
+                after: "t1".into(),
+            },
+            Step {
+                before: "t1".into(),
+                after: "t2".into(),
+            },
+        ];
+        assert!(pop_step(&mut steps, "edited").is_err());
+        assert_eq!(steps.len(), 2);
+        assert_eq!(pop_step(&mut steps, "t2").unwrap(), "t1");
+        assert_eq!(pop_step(&mut steps, "t1").unwrap(), "t0");
+        assert!(pop_step(&mut steps, "t0").is_err());
+    }
 
     #[test]
     fn finds_hunks() {

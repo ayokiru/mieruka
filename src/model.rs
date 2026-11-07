@@ -64,6 +64,8 @@ pub struct DocMeta {
     pub changes: usize,
     /// Hunks changed outside mieruka since the last accept (tracked files only).
     pub unreviewed: usize,
+    /// Reverts that can still be undone, newest first.
+    pub undo_steps: usize,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub read_at: Option<u64>,
 }
