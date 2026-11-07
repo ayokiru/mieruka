@@ -114,7 +114,7 @@ pub fn check(roots: &[PathBuf], format: Format) -> anyhow::Result<i32> {
                     gh_escape(&i.message, false)
                 );
             }
-            summary(&snap, issues.len(), failing, &Paint(false));
+            summary(&snap, &Paint(false));
         }
         Format::Text => {
             let p = Paint::new();
@@ -133,22 +133,35 @@ pub fn check(roots: &[PathBuf], format: Format) -> anyhow::Result<i32> {
                 );
                 println!("    {}", i.message);
             }
-            summary(&snap, issues.len(), failing, &p);
+            summary(&snap, &p);
         }
     }
     Ok(if failing > 0 { 1 } else { 0 })
 }
 
-fn summary(snap: &Snapshot, total: usize, failing: usize, p: &Paint) {
+fn summary(snap: &Snapshot, p: &Paint) {
     let files = snap.workspace.docs.len();
     let docs = format!("{files} agent {}", if files == 1 { "doc" } else { "docs" });
-    let line = if total == 0 {
+    let count = |sev: Severity| {
+        snap.workspace
+            .issues
+            .iter()
+            .filter(|i| i.severity == sev)
+            .count()
+    };
+    let parts: Vec<String> = [
+        (count(Severity::Error), "error", "errors"),
+        (count(Severity::Warning), "warning", "warnings"),
+        (count(Severity::Info), "note", "notes"),
+    ]
+    .into_iter()
+    .filter(|(n, _, _)| *n > 0)
+    .map(|(n, one, many)| plural(n, one, many))
+    .collect();
+    let line = if parts.is_empty() {
         p.wrap("32", &format!("No issues in {docs}."))
     } else {
-        format!(
-            "{} in {docs} ({failing} failing).",
-            plural(total, "issue", "issues")
-        )
+        format!("{} in {docs}.", parts.join(", "))
     };
     // Keep stdout clean for annotations and pipes.
     eprintln!("{line}");
