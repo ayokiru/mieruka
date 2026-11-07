@@ -35,7 +35,7 @@ fn shown_path(snap: &Snapshot, issue: &Issue) -> String {
         return String::new();
     };
     let cwd = std::env::current_dir().ok();
-    let cwd = cwd.as_deref().and_then(|c| c.canonicalize().ok());
+    let cwd = cwd.as_deref().and_then(|c| crate::util::canonical(c).ok());
     match cwd.as_deref().and_then(|c| e.path.strip_prefix(c).ok()) {
         Some(rel) => rel.to_string_lossy().replace('\\', "/"),
         None => crate::util::display(&e.path, None),

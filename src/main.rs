@@ -65,10 +65,7 @@ fn roots(paths: &[PathBuf]) -> Result<Vec<PathBuf>> {
     };
     paths
         .iter()
-        .map(|p| {
-            p.canonicalize()
-                .with_context(|| format!("cannot open {}", p.display()))
-        })
+        .map(|p| crate::util::canonical(p).with_context(|| format!("cannot open {}", p.display())))
         .collect()
 }
 

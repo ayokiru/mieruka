@@ -11,6 +11,21 @@ pub fn id_for(path: &Path) -> String {
     format!("{:012x}", hash(&path.to_string_lossy()) & 0xffff_ffff_ffff)
 }
 
+/// `canonicalize` without Windows' `\\?\` prefix, so paths look like the ones agents and people use.
+pub fn canonical(path: &Path) -> std::io::Result<PathBuf> {
+    let c = path.canonicalize()?;
+    #[cfg(windows)]
+    {
+        let s = c.to_string_lossy();
+        if let Some(rest) = s.strip_prefix(r"\\?\")
+            && rest.as_bytes().get(1) == Some(&b':')
+        {
+            return Ok(PathBuf::from(rest));
+        }
+    }
+    Ok(c)
+}
+
 pub fn home() -> Option<PathBuf> {
     std::env::home_dir()
 }

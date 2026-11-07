@@ -35,7 +35,7 @@ struct Builder<'a> {
 
 impl<'a> Builder<'a> {
     fn doc_id(&self, p: &Path) -> Option<String> {
-        let c = p.canonicalize().ok()?;
+        let c = crate::util::canonical(p).ok()?;
         self.doc_ids.get(&c).cloned()
     }
 
@@ -51,7 +51,7 @@ impl<'a> Builder<'a> {
         if tokens.is_some() && !on_demand {
             self.out
                 .loaded
-                .push(path.canonicalize().unwrap_or_else(|_| path.to_path_buf()));
+                .push(crate::util::canonical(path).unwrap_or_else(|_| path.to_path_buf()));
         }
     }
 
@@ -328,7 +328,7 @@ pub fn claude(
                     .out
                     .loaded
                     .iter()
-                    .any(|p| file.canonicalize().is_ok_and(|c| &c == p));
+                    .any(|p| crate::util::canonical(file).is_ok_and(|c| &c == p));
                 if !imported {
                     b.skipped(file, "not read: CLAUDE.md takes precedence");
                 }
@@ -493,7 +493,7 @@ mod tests {
         let d = std::env::temp_dir().join(format!("mieruka-ctx-{name}-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&d);
         std::fs::create_dir_all(&d).unwrap();
-        d.canonicalize().unwrap()
+        crate::util::canonical(&d).unwrap()
     }
 
     fn project_files(root: &Path) -> Vec<PathBuf> {

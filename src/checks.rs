@@ -214,9 +214,13 @@ pub fn run(root: &Path, docs: &[CheckedDoc], claude: &Built, codex: &Built) -> V
     let idx = file_index(root);
     let by_path: HashMap<PathBuf, &CheckedDoc> = docs
         .iter()
-        .filter_map(|d| Some((d.path.canonicalize().ok()?, d)))
+        .filter_map(|d| Some((crate::util::canonical(d.path).ok()?, d)))
         .collect();
-    let find = |p: &Path| p.canonicalize().ok().and_then(|c| by_path.get(&c).copied());
+    let find = |p: &Path| {
+        crate::util::canonical(p)
+            .ok()
+            .and_then(|c| by_path.get(&c).copied())
+    };
 
     for doc in docs.iter().filter(|d| d.instruction) {
         stale_paths(root, doc, &ignored, &idx, &mut out);

@@ -120,7 +120,7 @@ pub fn build(roots: &[PathBuf], interactive: bool) -> Snapshot {
 
         let doc_ids: HashMap<PathBuf, String> = ids
             .iter()
-            .filter_map(|id| Some((docs[id].path.canonicalize().ok()?, id.clone())))
+            .filter_map(|id| Some((crate::util::canonical(&docs[id].path).ok()?, id.clone())))
             .collect();
         let instruction_files: Vec<PathBuf> = ids
             .iter()
