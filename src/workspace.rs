@@ -2,7 +2,7 @@
 
 use crate::checks::{self, CheckedDoc};
 use crate::model::*;
-use crate::{context, discover, markdown, reads, review, util};
+use crate::{agents, context, discover, markdown, reads, review, util};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
@@ -166,6 +166,9 @@ pub fn build(roots: &[PathBuf], interactive: bool) -> Snapshot {
             .collect();
         let claude = context::claude(root, &instruction_files, &doc_ids);
         let codex = context::codex(root, &instruction_files, &doc_ids);
+        let cursor = agents::cursor(root, &instruction_files, &doc_ids);
+        let copilot = agents::copilot(root, &instruction_files, &doc_ids);
+        let antigravity = agents::antigravity(root, &instruction_files, &doc_ids);
 
         let checked: Vec<CheckedDoc> = ids
             .iter()
@@ -180,12 +183,25 @@ pub fn build(roots: &[PathBuf], interactive: bool) -> Snapshot {
                 }
             })
             .collect();
-        issues.extend(checks::run(root, &checked, &claude, &codex));
+        issues.extend(checks::run(
+            root,
+            &checked,
+            &[
+                ("Claude Code", &claude),
+                ("Codex", &codex),
+                ("Cursor", &cursor),
+                ("Copilot", &copilot),
+                ("Antigravity", &antigravity),
+            ],
+        ));
 
         let dir = util::display(root, root.parent());
         for (agent, label, built, approximate) in [
             ("claude", "Claude Code", claude, true),
             ("codex", "Codex", codex, true),
+            ("cursor", "Cursor", cursor, true),
+            ("copilot", "Copilot", copilot, true),
+            ("antigravity", "Antigravity", antigravity, true),
         ] {
             contexts.push(AgentContext {
                 agent,

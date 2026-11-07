@@ -52,6 +52,9 @@ pub fn is_instruction(rel: &Path) -> bool {
     ) || s.contains(".claude/rules/")
         || s.contains(".cursor/rules/")
         || s.ends_with(".github/copilot-instructions.md")
+        || (s.contains(".github/instructions/") && name.ends_with(".instructions.md"))
+        || s.contains(".agents/rules/")
+        || s.contains(".agent/rules/")
 }
 
 fn classify(rel: &Path) -> DocKind {
@@ -147,11 +150,26 @@ pub fn global_docs() -> Vec<Found> {
         ".codex/AGENTS.md",
         ".codex/AGENTS.override.md",
         ".gemini/GEMINI.md",
+        ".gemini/AGENTS.md",
+        ".gemini/config/AGENTS.md",
+        ".gemini/config/GEMINI.md",
     ] {
         let p = home.join(rel);
         if p.is_file() {
             out.push(Found {
                 path: p,
+                kind: DocKind::Instructions,
+            });
+        }
+    }
+    for entry in std::fs::read_dir(home.join(".gemini/config/rules"))
+        .into_iter()
+        .flatten()
+        .flatten()
+    {
+        if is_markdown(&entry.path()) {
+            out.push(Found {
+                path: entry.path(),
                 kind: DocKind::Instructions,
             });
         }

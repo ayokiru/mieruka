@@ -93,7 +93,7 @@ fn path_candidate(raw: &str) -> Option<String> {
     Some(t.to_string())
 }
 
-fn gitignore(root: &Path) -> Gitignore {
+pub(crate) fn gitignore(root: &Path) -> Gitignore {
     let mut b = GitignoreBuilder::new(root);
     let _ = b.add(root.join(".gitignore"));
     b.build().unwrap_or_else(|_| Gitignore::empty())
@@ -208,7 +208,9 @@ fn stale_paths(
     }
 }
 
-pub fn run(root: &Path, docs: &[CheckedDoc], claude: &Built, codex: &Built) -> Vec<Issue> {
+/// `agents` starts with Claude Code and Codex, which have checks of their own.
+pub fn run(root: &Path, docs: &[CheckedDoc], agents: &[(&str, &Built)]) -> Vec<Issue> {
+    let (claude, codex) = (agents[0].1, agents[1].1);
     let mut out = Vec::new();
     let ignored = gitignore(root);
     let idx = file_index(root);
@@ -314,7 +316,23 @@ pub fn run(root: &Path, docs: &[CheckedDoc], claude: &Built, codex: &Built) -> V
         }
     }
 
-    for (agent, built) in [("Claude Code", claude), ("Codex", codex)] {
+    for (_, built) in agents {
+        for n in &built.notices {
+            if let Some(doc) = find(&n.file) {
+                out.push(issue(
+                    doc,
+                    n.rule,
+                    n.title,
+                    n.severity,
+                    1,
+                    n.message.clone(),
+                    None,
+                ));
+            }
+        }
+    }
+
+    for (agent, built) in agents {
         let mut seen = HashSet::new();
         for p in &built.loaded {
             if !seen.insert(p)
@@ -380,17 +398,13 @@ mod tests {
             lines: 1,
             instruction: true,
         };
-        let empty = Built {
-            sources: vec![],
-            loaded: vec![],
-            import_problems: vec![],
-        };
-        let empty2 = Built {
-            sources: vec![],
-            loaded: vec![],
-            import_problems: vec![],
-        };
-        let issues = run(&root, &[doc], &empty, &empty2);
+        let empty = Built::default();
+        let empty2 = Built::default();
+        let issues = run(
+            &root,
+            &[doc],
+            &[("Claude Code", &empty), ("Codex", &empty2)],
+        );
         assert_eq!(issues.len(), 1);
         assert!(issues[0].message.contains("Did you mean scripts/build.sh?"));
         std::fs::remove_dir_all(root).unwrap();

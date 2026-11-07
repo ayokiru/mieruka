@@ -188,7 +188,7 @@ pub fn context(root: &Path, agent: Option<&str>, json: bool) -> anyhow::Result<(
         .filter(|c| agent.is_none_or(|a| c.agent == a))
         .collect();
     if contexts.is_empty() {
-        anyhow::bail!("unknown agent, use one of: claude, codex");
+        anyhow::bail!("unknown agent, use one of: claude, codex, cursor, copilot, antigravity");
     }
     if json {
         println!("{}", serde_json::to_string_pretty(&contexts)?);

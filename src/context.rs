@@ -2,7 +2,7 @@
 //! (code.claude.com/docs/en/memory, Codex AGENTS.md guide).
 
 use crate::markdown;
-use crate::model::ContextSource;
+use crate::model::{ContextSource, Severity};
 use crate::util;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -20,26 +20,62 @@ pub struct ImportProblem {
     pub too_deep: bool,
 }
 
+/// A problem an agent profile found in one file, turned into an issue by the checks.
+pub struct Notice {
+    pub file: PathBuf,
+    pub rule: &'static str,
+    pub title: &'static str,
+    pub severity: Severity,
+    pub message: String,
+}
+
+#[derive(Default)]
 pub struct Built {
     pub sources: Vec<ContextSource>,
     /// Every file the agent reads up front, for duplicate detection.
     pub loaded: Vec<PathBuf>,
     pub import_problems: Vec<ImportProblem>,
+    pub notices: Vec<Notice>,
 }
 
-struct Builder<'a> {
-    base: &'a Path,
+pub(crate) struct Builder<'a> {
+    pub base: &'a Path,
     doc_ids: &'a HashMap<PathBuf, String>,
-    out: Built,
+    pub out: Built,
 }
 
 impl<'a> Builder<'a> {
+    pub fn new(base: &'a Path, doc_ids: &'a HashMap<PathBuf, String>) -> Self {
+        Builder {
+            base,
+            doc_ids,
+            out: Built::default(),
+        }
+    }
+
+    pub fn notice(
+        &mut self,
+        file: &Path,
+        rule: &'static str,
+        title: &'static str,
+        severity: Severity,
+        message: impl Into<String>,
+    ) {
+        self.out.notices.push(Notice {
+            file: file.to_path_buf(),
+            rule,
+            title,
+            severity,
+            message: message.into(),
+        });
+    }
+
     fn doc_id(&self, p: &Path) -> Option<String> {
         let c = crate::util::canonical(p).ok()?;
         self.doc_ids.get(&c).cloned()
     }
 
-    fn push(&mut self, path: &Path, how: String, tokens: Option<usize>, on_demand: bool) {
+    pub fn push(&mut self, path: &Path, how: String, tokens: Option<usize>, on_demand: bool) {
         let doc_id = self.doc_id(path);
         self.out.sources.push(ContextSource {
             path: util::display(path, Some(self.base)),
@@ -55,7 +91,7 @@ impl<'a> Builder<'a> {
         }
     }
 
-    fn skipped(&mut self, path: &Path, why: &str) {
+    pub fn skipped(&mut self, path: &Path, why: &str) {
         self.push(path, why.to_string(), None, false);
     }
 
@@ -110,7 +146,7 @@ pub fn resolve(dir: &Path, target: &str) -> PathBuf {
 }
 
 /// Root first, `cwd` last.
-fn ancestors(cwd: &Path) -> Vec<PathBuf> {
+pub(crate) fn ancestors(cwd: &Path) -> Vec<PathBuf> {
     let mut v: Vec<PathBuf> = cwd.ancestors().map(Path::to_path_buf).collect();
     v.reverse();
     v
@@ -175,15 +211,7 @@ pub fn claude(
     instruction_files: &[PathBuf],
     doc_ids: &HashMap<PathBuf, String>,
 ) -> Built {
-    let mut b = Builder {
-        base: root,
-        doc_ids,
-        out: Built {
-            sources: Vec::new(),
-            loaded: Vec::new(),
-            import_problems: Vec::new(),
-        },
-    };
+    let mut b = Builder::new(root, doc_ids);
     let home = util::home();
 
     let managed = managed_claude_md();
@@ -333,12 +361,7 @@ pub fn claude(
                     b.skipped(file, "not read: CLAUDE.md takes precedence");
                 }
             }
-            "AGENTS.override.md" | "GEMINI.md" | ".cursorrules" => {
-                b.skipped(file, "not read by Claude Code")
-            }
-            _ if rel.starts_with(".cursor") || rel.ends_with(".github/copilot-instructions.md") => {
-                b.skipped(file, "not read by Claude Code")
-            }
+            "AGENTS.override.md" => b.skipped(file, "not read by Claude Code"),
             _ => {}
         }
     }
@@ -383,15 +406,7 @@ pub fn codex(
     instruction_files: &[PathBuf],
     doc_ids: &HashMap<PathBuf, String>,
 ) -> Built {
-    let mut b = Builder {
-        base: root,
-        doc_ids,
-        out: Built {
-            sources: Vec::new(),
-            loaded: Vec::new(),
-            import_problems: Vec::new(),
-        },
-    };
+    let mut b = Builder::new(root, doc_ids);
     let home = codex_home();
     let (fallbacks, max_bytes) = home
         .as_deref()
@@ -476,9 +491,7 @@ pub fn codex(
             "AGENTS.md" | "AGENTS.override.md" if below => {
                 b.skipped(file, "not read: below the working directory")
             }
-            "CLAUDE.md" | "CLAUDE.local.md" | "GEMINI.md" | ".cursorrules" => {
-                b.skipped(file, "not read by Codex")
-            }
+            "CLAUDE.md" | "CLAUDE.local.md" => b.skipped(file, "not read by Codex"),
             _ => {}
         }
     }
