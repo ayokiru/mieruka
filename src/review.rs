@@ -118,48 +118,46 @@ pub fn hunks(old: &[ParsedBlock], new: &[ParsedBlock]) -> Vec<Hunk> {
     out
 }
 
-/// Raw source of a run of blocks, including the blank lines between them.
-fn slice(text: &str, blocks: &[ParsedBlock], range: Range<usize>) -> String {
-    if range.is_empty() {
-        return String::new();
+/// Line span (0-based, end exclusive) of a run of blocks together with the gap that separates
+/// it from its neighbours: the gap before it, or after it for a run at the start of the document.
+/// Both sides of a hunk start at 0 together and end at the last block together, so the spans line up.
+fn span(lines: usize, blocks: &[ParsedBlock], range: &Range<usize>) -> Range<usize> {
+    let n = blocks.len();
+    if n == 0 {
+        return lines..lines;
     }
-    let lines: Vec<&str> = text.lines().collect();
-    let s = blocks[range.start].start - 1;
-    let e = blocks[range.end - 1].end.min(lines.len());
-    lines[s..e].join("\n")
+    let end_of = |i: usize| blocks[i].end.min(lines);
+    if range.start > 0 {
+        let s = end_of(range.start - 1);
+        s..if range.is_empty() {
+            s
+        } else {
+            end_of(range.end - 1)
+        }
+    } else {
+        let s = blocks[0].start - 1;
+        s..if range.end < n {
+            blocks[range.end].start - 1
+        } else {
+            end_of(n - 1)
+        }
+    }
 }
 
-/// Replace a run of blocks in `text` with `insert` (empty run: insert before it; empty insert: delete).
-fn splice(text: &str, blocks: &[ParsedBlock], range: Range<usize>, insert: &str) -> String {
+/// Source lines of a run of blocks, separators included.
+fn slice(text: &str, blocks: &[ParsedBlock], range: Range<usize>) -> Vec<String> {
+    let lines: Vec<&str> = text.lines().collect();
+    lines[span(lines.len(), blocks, &range)]
+        .iter()
+        .map(|l| l.to_string())
+        .collect()
+}
+
+/// Replace a run of blocks (with its separators) in `text` by `insert`.
+fn splice(text: &str, blocks: &[ParsedBlock], range: Range<usize>, insert: &[String]) -> String {
     let mut lines: Vec<&str> = text.lines().collect();
-    let mut chunk: Vec<&str> = insert.lines().collect();
-    if !range.is_empty() {
-        let mut s = blocks[range.start].start - 1;
-        let mut e = blocks[range.end - 1].end.min(lines.len());
-        if chunk.is_empty() && (s == 0 || lines[s - 1].trim().is_empty()) {
-            // Also drop the blank lines that separated the removed blocks from their neighbours.
-            while e < lines.len() && lines[e].trim().is_empty() {
-                e += 1;
-            }
-            if e == lines.len() {
-                while s > 0 && lines[s - 1].trim().is_empty() {
-                    s -= 1;
-                }
-            }
-        }
-        lines.splice(s..e, chunk);
-    } else if !chunk.is_empty() {
-        let at = blocks
-            .get(range.start)
-            .map(|b| b.start - 1)
-            .unwrap_or(lines.len());
-        if at < lines.len() {
-            chunk.push("");
-        } else if at > 0 && !lines[at - 1].trim().is_empty() {
-            chunk.insert(0, "");
-        }
-        lines.splice(at..at, chunk);
-    }
+    let at = span(lines.len(), blocks, &range);
+    lines.splice(at, insert.iter().map(String::as_str));
     let eol = if text.contains("\r\n") { "\r\n" } else { "\n" };
     let mut out = lines.join(eol);
     if text.ends_with('\n') || text.is_empty() {
@@ -271,9 +269,10 @@ mod tests {
     fn finds_hunks() {
         let (po, pn) = (markdown::parse(OLD), markdown::parse(NEW));
         let hs = hunks(&po.blocks, &pn.blocks);
+        // List items are blocks of their own, so only the new item and paragraph differ.
         assert_eq!(hs.len(), 2);
-        assert_eq!((hs[0].old.clone(), hs[0].new.clone()), (2..4, 2..4));
-        assert_eq!((hs[1].old.clone(), hs[1].new.clone()), (5..5, 5..6));
+        assert_eq!((hs[0].old.clone(), hs[0].new.clone()), (4..5, 4..6));
+        assert_eq!((hs[1].old.clone(), hs[1].new.clone()), (6..6, 7..8));
         assert!(hunks(&po.blocks, &po.blocks).is_empty());
     }
 
@@ -291,5 +290,22 @@ mod tests {
         assert_eq!(apply_all(old, new, false), old);
         assert_eq!(apply_all("A.\n", "New.\n\nA.\n", true), "New.\n\nA.\n");
         assert_eq!(apply_all("A.\r\n\r\nB.\r\n", "A.\r\n", true), "A.\r\n");
+    }
+
+    #[test]
+    fn list_items_keep_tight_and_loose_spacing() {
+        for (old, new) in [
+            (
+                "# T\n\n- a\n- c\n\nEnd.\n",
+                "# T\n\n- a\n- b\n- c\n\nEnd.\n",
+            ),
+            ("- a\n- b\n", "- b\n"),
+            ("- a\n- b\n", "- a\n- b\n- c\n"),
+            ("- a\n\n- c\n", "- a\n\n- b\n\n- c\n"),
+            ("---\nx: 1\n---\n# T\n", "---\nx: 1\n---\nNew.\n\n# T\n"),
+        ] {
+            assert_eq!(apply_all(old, new, true), new, "accept {old:?}");
+            assert_eq!(apply_all(old, new, false), old, "revert {new:?}");
+        }
     }
 }

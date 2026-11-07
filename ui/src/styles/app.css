@@ -79,6 +79,9 @@ code, .mono { font-family: var(--font-mono); }
 .reader code, .tip code { overflow-wrap: anywhere; }
 .reader p, .reader li { font-size: 15px; line-height: 1.65; }
 .reader ul { margin: 4px 0; padding-left: 20px; }
+/* Each list item is its own block; keep the list visually continuous. */
+.reader .block > div > ul, .reader .block > div > ol { margin: 0; }
+.reader .block > div > ul li, .reader .block > div > ol li { margin: 3px 0; }
 .reader code {
   font-size: 13px; background: var(--raised); border: 1px solid var(--border); border-radius: 5px; padding: 1px 5px;
 }
