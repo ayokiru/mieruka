@@ -46,10 +46,16 @@ jobs:
           cp LICENSE "pkg/$name/"
           if [[ "${{ matrix.target }}" == *windows* ]]; then
             cp target/${{ matrix.target }}/release/mieruka.exe "pkg/$name/"
-            (cd pkg && 7z a -tzip "../out/$name.zip" "$name" > /dev/null)
+            # -tzip without extra fields: no NTFS times, owners or ACLs.
+            (cd pkg && 7z a -tzip -mtc=off -mta=off "../out/$name.zip" "$name" > /dev/null)
           else
             cp target/${{ matrix.target }}/release/mieruka "pkg/$name/"
-            tar -C pkg -czf "out/$name.tar.gz" "$name"
+            # No runner user/group names or macOS extended attributes in the archive.
+            if tar --version | grep -q GNU; then
+              tar -C pkg --owner=0 --group=0 --numeric-owner -czf "out/$name.tar.gz" "$name"
+            else
+              COPYFILE_DISABLE=1 tar -C pkg --no-xattrs --no-mac-metadata --uid 0 --gid 0 --uname "" --gname "" -czf "out/$name.tar.gz" "$name"
+            fi
           fi
       - uses: actions/upload-artifact@v5
         with:
@@ -60,6 +66,7 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v5
       - uses: actions/download-artifact@v5
         with:
           path: out
@@ -68,5 +75,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          cd out && sha256sum * > SHA256SUMS
-          gh release create "${{ github.ref_name }}" * --repo "${{ github.repository }}" --title "${{ github.ref_name }}" --generate-notes
+          notes=".github/releases/${{ github.ref_name }}.md"
+          if [ -f "$notes" ]; then set -- --notes-file "$notes"; else set -- --generate-notes; fi
+          (cd out && sha256sum * > SHA256SUMS)
+          gh release create "${{ github.ref_name }}" out/* --repo "${{ github.repository }}" --title "mieruka ${{ github.ref_name }}" "$@"
