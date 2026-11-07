@@ -25,7 +25,7 @@ type Shared = Arc<App>;
 
 async fn snapshot(app: &Shared) -> workspace::Snapshot {
     let roots = app.roots.clone();
-    tokio::task::spawn_blocking(move || workspace::build(&roots))
+    tokio::task::spawn_blocking(move || workspace::build(&roots, true))
         .await
         .expect("workspace build panicked")
 }

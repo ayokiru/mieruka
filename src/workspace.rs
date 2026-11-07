@@ -71,7 +71,9 @@ fn entry(
     })
 }
 
-pub fn build(roots: &[PathBuf]) -> Snapshot {
+/// `interactive` is the UI: it tracks files for review (writes ~/.mieruka) and lists the agents' home folders.
+/// The CLI builds read-only and per project.
+pub fn build(roots: &[PathBuf], interactive: bool) -> Snapshot {
     let mut projects = Vec::new();
     let mut docs: HashMap<String, Entry> = HashMap::new();
     let mut order: Vec<String> = Vec::new();
@@ -93,11 +95,15 @@ pub fn build(roots: &[PathBuf]) -> Snapshot {
         let mut found: Vec<(discover::Found, bool)> = discover::project_docs(root)
             .into_iter()
             .map(|f| {
-                let tracked = f.kind == DocKind::Instructions;
+                let tracked = interactive && f.kind == DocKind::Instructions;
                 (f, tracked)
             })
             .collect();
-        found.extend(discover::memory_docs(root).into_iter().map(|f| (f, true)));
+        found.extend(
+            discover::memory_docs(root)
+                .into_iter()
+                .map(|f| (f, interactive)),
+        );
         let mut ids = Vec::new();
         for (f, tracked) in found {
             let base = if f.path.starts_with(root) {
@@ -156,7 +162,11 @@ pub fn build(roots: &[PathBuf]) -> Snapshot {
     }
 
     // Agents' home folders as their own project.
-    let global = discover::global_docs();
+    let global = if interactive {
+        discover::global_docs()
+    } else {
+        Vec::new()
+    };
     if !global.is_empty() {
         projects.push(Project {
             id: "home".into(),
