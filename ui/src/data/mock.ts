@@ -1,7 +1,7 @@
 import type { AgentContext, Doc, DocMeta, Issue, Project, Workspace } from "./types";
 
 // Stand-in used when the UI runs without the Rust core.
-const data: { projects: Project[]; docs: (Omit<Doc, "changes" | "unreviewed" | "readAt"> & { readAt?: string })[]; issues: Issue[]; contexts: Omit<AgentContext, "projectId" | "label">[] } = {
+const data: { projects: Project[]; docs: (Omit<Doc, "changes" | "unreviewed" | "undoSteps" | "readAt"> & { readAt?: string })[]; issues: Issue[]; contexts: Omit<AgentContext, "projectId" | "label">[] } = {
   projects: [
     { id: "winrice", name: "winrice", root: "~/Projects/winrice" },
     { id: "pakwatch", name: "pakwatch", root: "~/Projects/pakwatch" },
@@ -180,7 +180,7 @@ export const mockDocs: Record<string, Doc> = Object.fromEntries(
     const changes = d.blocks.filter((b) => b.change).length;
     const unreviewed = new Set(d.blocks.map((b) => b.hunk).filter(Boolean)).size;
     const readAt = d.readAt ? Date.now() - Number(d.readAt) * DAY : undefined;
-    return [d.id, { ...d, changes, unreviewed, readAt }];
+    return [d.id, { ...d, changes, unreviewed, undoSteps: 0, readAt }];
   }),
 );
 

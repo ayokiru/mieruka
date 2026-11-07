@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Doc, Workspace } from "./data/types";
 import { acceptHunk, loadDoc, loadWorkspace, markRead, revertHunk, undoRevert } from "./data/api";
 import { Sidebar } from "./components/Sidebar";
@@ -173,7 +173,8 @@ export default function App() {
     try {
       await action();
     } catch (e) {
-      setToast({ message: e instanceof Error ? e.message : String(e), error: true });
+      const text = e instanceof Error ? e.message : String(e);
+      setToast({ message: text.charAt(0).toUpperCase() + text.slice(1), error: true });
     }
     await refresh();
     setVersion((v) => v + 1);
@@ -205,9 +206,29 @@ export default function App() {
     }
     void write(async () => {
       await revertHunk(id, hunk);
-      setToast({ message: "Change reverted", undo: () => void write(() => undoRevert(id)) });
+      setToast({ message: "Change reverted", undo: () => undoLastRevert(id) });
     });
   }
+
+  // Each call undoes one more revert; the core refuses if the file changed since.
+  function undoLastRevert(id: string) {
+    void write(async () => {
+      await undoRevert(id);
+      setToast({ message: "Revert undone" });
+    });
+  }
+  const undoShortcut = useRef<() => boolean>(() => false);
+  undoShortcut.current = () => {
+    if (toast?.undo) {
+      undoToast();
+      return true;
+    }
+    if (shown && meta && meta.undoSteps > 0 && !offline && editingId !== shown.id) {
+      undoLastRevert(shown.id);
+      return true;
+    }
+    return false;
+  };
 
   function undoToast() {
     toast?.undo?.();
@@ -259,10 +280,8 @@ export default function App() {
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       const mod = e.metaKey || e.ctrlKey;
-      if (mod && !e.shiftKey && e.key.toLowerCase() === "z" && toast?.undo && !isTyping(e)) {
-        e.preventDefault();
-        toast.undo();
-        setToast(null);
+      if (mod && !e.shiftKey && e.key.toLowerCase() === "z" && !isTyping(e)) {
+        if (undoShortcut.current()) e.preventDefault();
       } else if (mod && e.key.toLowerCase() === "k") {
         e.preventDefault();
         setPalette(true);

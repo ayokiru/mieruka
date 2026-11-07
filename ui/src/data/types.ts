@@ -35,6 +35,7 @@ export interface DocMeta {
   title: string;
   changes: number; // blocks changed since the last "Mark as read"
   unreviewed: number; // hunks changed outside mieruka, not yet accepted
+  undoSteps: number; // reverts that ⌘Z can still undo
   readAt?: number; // unix ms
 }
 
