@@ -211,13 +211,7 @@ mod tests {
         let found = project_docs(&dir);
         let names: Vec<_> = found
             .iter()
-            .map(|f| {
-                f.path
-                    .strip_prefix(&dir)
-                    .unwrap()
-                    .to_string_lossy()
-                    .into_owned()
-            })
+            .map(|f| util::display(&f.path, Some(&dir)))
             .collect();
         assert_eq!(names, ["CLAUDE.md", "plans/a.md"]);
         std::fs::remove_dir_all(dir).unwrap();
