@@ -1,4 +1,9 @@
-<h1 align="center">mieruka</h1>
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset=".github/readme/logo-dark.svg">
+    <img alt="mieruka" src=".github/readme/logo-light.svg" width="300">
+  </picture>
+</p>
 
 <p align="center">
   See what your coding agent sees.<br>
@@ -39,7 +44,7 @@ A coding agent starts every session by reading instruction files, and the rules 
 
 ## Install
 
-Download the archive for your system from [Releases](https://github.com/ayokiru/mieruka/releases) and put `mieruka` somewhere on your `PATH`. It is a single file with no dependencies.
+Download the archive for your system from [Releases](https://github.com/ayokiru/mieruka/releases) and put `mieruka` somewhere on your `PATH`. It is a single file with no dependencies. The binaries are not signed yet: on macOS, run `xattr -d com.apple.quarantine mieruka` once; on Windows, SmartScreen may ask you to confirm the first start.
 
 Or build it from source with Rust and Node.js:
 
@@ -95,6 +100,10 @@ Nothing leaves your machine. mieruka writes only to the files you edit or revert
 ## Roadmap
 
 Cursor, GitHub Copilot and Gemini CLI rules; checks for instructions that contradict each other; comments on documents; live reload.
+
+## The name
+
+Mieruka (見える化) is Japanese for "making visible", a word from lean manufacturing for putting the state of work where everyone can see it.
 
 ## License
 
