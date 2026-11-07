@@ -63,14 +63,9 @@ mieruka check                # problems in agent instructions
 
 The web UI runs on `127.0.0.1` only. Press `E` to edit, `⌘K` to search, `J` / `K` to step through changes.
 
-```console
-$ mieruka check
-AGENTS.md:1  warning  Not read by Claude Code [shadowed]
-    A CLAUDE.md in this folder or above takes precedence. Add @AGENTS.md to CLAUDE.md to load it.
-CLAUDE.md:8  warning  Stale path [stale-path]
-    scripts/seed-db.sh does not exist.
-3 warnings in 6 agent docs.
-```
+<p align="center">
+  <img alt="mieruka check lists a stale path and an AGENTS.md Claude Code ignores and exits with 1; mieruka context lists the files Claude Code loads; --format github prints the same problems as GitHub annotations" src=".github/readme/cli.gif" width="900">
+</p>
 
 ## In CI
 
@@ -83,7 +78,7 @@ CLAUDE.md:8  warning  Stale path [stale-path]
     ./mieruka-x86_64-unknown-linux-musl/mieruka check --format github
 ```
 
-`--format json` prints the same list for scripts.
+`--format json` prints the same list for scripts. Text output follows `NO_COLOR`, and `CLICOLOR_FORCE=1` keeps the colors in CI logs.
 
 ## Where the rules come from
 
