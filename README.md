@@ -17,10 +17,7 @@
 </p>
 
 <p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset=".github/readme/ui-dark.png">
-    <img alt="mieruka showing a CLAUDE.md with two unreviewed changes, a stale path, and the files Claude Code loads at session start" src=".github/readme/ui-light.png" width="900">
-  </picture>
+  <img alt="mieruka flags a stale path in CLAUDE.md, shows an agent's edits as unreviewed changes, reverts one and accepts the other, then lists what each agent loads" src=".github/readme/demo.gif" width="900">
 </p>
 
 > [!NOTE]
