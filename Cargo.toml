@@ -1,6 +1,6 @@
 [package]
 name = "mieruka"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2024"
 description = "See which instruction files your coding agents load, and what changed in them"
 license = "MIT"
