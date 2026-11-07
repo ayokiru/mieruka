@@ -7,7 +7,7 @@
 
 <p align="center">
   See what your coding agent sees.<br>
-  A local app for the Markdown files Claude Code and Codex read. It shows which ones the agent loads, what is wrong in them, and what changed since you last looked.
+  A local app for the Markdown files your coding agents read: Claude Code, Codex, Cursor, GitHub Copilot and Antigravity. It shows which ones each agent loads, what is wrong in them, and what changed since you last looked.
 </p>
 
 <p align="center">
@@ -32,12 +32,13 @@ A coding agent starts every session by reading instruction files, and the rules 
 
 - Claude Code reads `CLAUDE.md` from every folder above the one you start in, follows `@imports` four levels deep, loads `src/CLAUDE.md` only when it works in `src/`, and ignores `AGENTS.md` if any `CLAUDE.md` exists.
 - Codex reads one `AGENTS.md` per folder from the git root down, and silently cuts everything past 32 KiB.
+- Cursor and Antigravity keep rules in their own folders with their own frontmatter. A Cursor rule saved as `.md` instead of `.mdc`, or an Antigravity rule without a `trigger`, is dropped without a word.
 - Agents edit these files too, so a new rule can land in your instructions or memory without anyone reviewing it.
 
 ## What it does
 
 - For each project and agent, the panel on the right lists the files loaded at session start, the ones loaded later, and the ones skipped with the reason. Token counts are estimates.
-- Checks flag paths that no longer exist (with a "did you mean"), broken or too-deep imports, an `AGENTS.md` that Claude Code never reads, files Codex cuts off, files loaded twice and an oversized `CLAUDE.md`. They are conservative on purpose, because a false alarm costs more than a missed one.
+- Checks flag paths that no longer exist (with a "did you mean"), broken or too-deep imports, an `AGENTS.md` that Claude Code never reads, rule files Cursor or Antigravity ignore, files Codex or Antigravity cut off, files loaded twice and an oversized `CLAUDE.md`. They are conservative on purpose, because a false alarm costs more than a missed one.
 - Instruction files and Claude's project memory are tracked. An edit made outside mieruka shows up as an unreviewed change, item by item, with Accept and Revert buttons. Revert can be undone.
 - After you mark a document as read, the parts that change later are highlighted.
 - Documents read like formatted text, `[[wiki links]]` included. The editor has a live preview and refuses to save over a file that changed on disk while you were editing.
@@ -89,7 +90,9 @@ CLAUDE.md:8  warning  Stale path [stale-path]
 
 ## Where the rules come from
 
-The loading rules come from the vendors' own documentation: [Claude Code memory](https://code.claude.com/docs/en/memory) and the [Codex AGENTS.md guide](https://developers.openai.com/codex/guides/agents-md). When a rule changes upstream, mieruka has to be updated, so if you notice a difference, please open an issue.
+The loading rules come from the vendors' own documentation: [Claude Code memory](https://code.claude.com/docs/en/memory), the [Codex AGENTS.md guide](https://developers.openai.com/codex/guides/agents-md), [Cursor rules](https://cursor.com/docs/context/rules), [Copilot repository instructions](https://docs.github.com/en/copilot/how-tos/configure-custom-instructions/add-repository-instructions) and [Antigravity rules](https://antigravity.google/docs/rules). When a rule changes upstream, mieruka has to be updated, so if you notice a difference, please open an issue.
+
+Copilot is shown as it works on GitHub.com, where git-ignored files don't exist. In VS Code, what Copilot reads depends on the agent you pick. Antigravity replaced Gemini CLI and still reads `GEMINI.md`.
 
 Token counts are estimates. Anthropic doesn't publish Claude's tokenizer, so mieruka shows `≈` everywhere.
 
@@ -99,7 +102,7 @@ Nothing leaves your machine. mieruka writes only to the files you edit or revert
 
 ## Roadmap
 
-Cursor, GitHub Copilot and Gemini CLI rules; checks for instructions that contradict each other; comments on documents; live reload.
+Checks for instructions that contradict each other; comments on documents; live reload; Copilot in VS Code.
 
 ## License
 
