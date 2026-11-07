@@ -101,10 +101,6 @@ Nothing leaves your machine. mieruka writes only to the files you edit or revert
 
 Cursor, GitHub Copilot and Gemini CLI rules; checks for instructions that contradict each other; comments on documents; live reload.
 
-## The name
-
-Mieruka (見える化) is Japanese for "making visible", a word from lean manufacturing for putting the state of work where everyone can see it.
-
 ## License
 
 [MIT](LICENSE)
