@@ -2,9 +2,14 @@
 name = "mieruka"
 version = "0.2.0"
 edition = "2024"
-description = "See what your coding agent sees: a workspace for agent Markdown"
+description = "See which instruction files your coding agents load, and what changed in them"
 license = "MIT"
 repository = "https://github.com/ayokiru/mieruka"
+readme = "README.md"
+keywords = ["claude-code", "codex", "cursor", "agents-md", "markdown"]
+categories = ["command-line-utilities", "development-tools"]
+# ui/dist is git-ignored but must ship: the binary embeds it. Build it before packaging.
+include = ["/src", "/ui/dist", "/Cargo.toml", "/Cargo.lock", "/LICENSE", "/README.md"]
 
 [dependencies]
 anyhow = "1.0.104"

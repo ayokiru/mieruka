@@ -1,0 +1,31 @@
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.defaultLocale.1.10.0.schema.json
+PackageIdentifier: ayokiru.mieruka
+PackageVersion: {{VERSION}}
+PackageLocale: en-US
+Publisher: ayokiru
+PublisherUrl: https://github.com/ayokiru
+PublisherSupportUrl: https://github.com/ayokiru/mieruka/issues
+PackageName: mieruka
+PackageUrl: https://github.com/ayokiru/mieruka
+License: MIT
+LicenseUrl: https://github.com/ayokiru/mieruka/blob/main/LICENSE
+ShortDescription: See which instruction files your coding agents load, and what changed in them.
+Description: |-
+  mieruka is a local app for the Markdown files coding agents read: Claude Code, Codex,
+  Cursor, GitHub Copilot and Antigravity. It shows which files each agent loads, flags
+  broken paths and imports, and lets you accept or revert edits agents make to them.
+  `mieruka check` runs the same checks in CI.
+Moniker: mieruka
+Tags:
+  - agents-md
+  - ai-agents
+  - claude-code
+  - claude-md
+  - codex
+  - copilot
+  - cursor
+  - developer-tools
+  - markdown
+ReleaseNotesUrl: https://github.com/ayokiru/mieruka/releases/tag/v{{VERSION}}
+ManifestType: defaultLocale
+ManifestVersion: 1.10.0
