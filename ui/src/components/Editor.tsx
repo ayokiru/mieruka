@@ -16,9 +16,10 @@ const highlight = HighlightStyle.define([
   { tag: [t.emphasis], fontStyle: "italic" },
   { tag: [t.strong], fontWeight: "600" },
   { tag: [t.link, t.url], color: "var(--indigo)" },
-  { tag: [t.monospace], color: "var(--gold)" },
+  // Gold is reserved for changes and red for issues, so code stays neutral here.
+  { tag: [t.monospace], color: "var(--text)", backgroundColor: "var(--raised)", borderRadius: "4px" },
   { tag: [t.processingInstruction, t.meta, t.contentSeparator, t.list, t.quote], color: "var(--faint)" },
-  { tag: t.comment, color: "var(--ink)" },
+  { tag: t.comment, color: "var(--faint)", fontStyle: "italic" },
 ]);
 
 const theme = EditorView.theme({
@@ -29,7 +30,7 @@ const theme = EditorView.theme({
   "&.cm-focused": { outline: "none" },
   ".cm-activeLine": { background: "var(--indigo-bg)" },
   "&.cm-focused .cm-selectionBackground, .cm-selectionBackground, ::selection": { background: "var(--indigo-bg) !important" },
-  ".cm-selectionMatch": { background: "var(--gold-bg)" },
+  ".cm-selectionMatch": { outline: "1px solid var(--border)", borderRadius: "2px" },
   ".cm-panels": { background: "var(--panel)", color: "var(--text)", borderColor: "var(--border)" },
 });
 
