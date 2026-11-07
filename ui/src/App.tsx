@@ -45,17 +45,21 @@ function flash(id: string) {
 // Instruction files first, CLAUDE.md / AGENTS.md before the rest.
 function firstDoc(ws: Workspace, projectId: string) {
   const docs = ws.docs.filter((d) => d.projectId === projectId);
-  const rank = (p: string) => (/^(CLAUDE|AGENTS)\.md$/.test(p) ? 0 : 1);
+  const rank = (p: string) => (p === "CLAUDE.md" ? 0 : p === "AGENTS.md" ? 1 : 2);
   return [...docs].sort(
     (a, b) => Number(a.kind !== "instructions") - Number(b.kind !== "instructions") || rank(a.path) - rank(b.path),
   )[0];
 }
+
+const readHash = () => decodeURIComponent(window.location.hash.slice(1));
 
 export default function App() {
   const [ws, setWs] = useState<Workspace | null>(null);
   const [offline, setOffline] = useState(false);
   const [projectId, setProjectId] = useState("");
   const [docId, setDocId] = useState("");
+  // The address shows the open document as #project/path, so it can be linked and bookmarked.
+  const [hash, setHash] = useState(readHash);
   const [doc, setDoc] = useState<Doc | null>(null);
   const [agent, setAgent] = useState("claude");
   const [sideW, setSideW] = useState(248);
@@ -89,9 +93,37 @@ export default function App() {
   }, [refresh]);
 
   // The stored selection may point at something that disappeared; fall back to the first item.
-  const pid = ws?.projects.some((p) => p.id === projectId) ? projectId : (ws?.projects[0]?.id ?? "");
-  const currentId = ws?.docs.some((d) => d.id === docId) ? docId : ws ? (firstDoc(ws, pid)?.id ?? "") : "";
+  const linkOf = useCallback(
+    (d: { projectId: string; path: string }) => `${ws?.projects.find((p) => p.id === d.projectId)?.name}/${d.path}`,
+    [ws],
+  );
+  const hashDoc = hash ? ws?.docs.find((d) => linkOf(d) === hash) : undefined;
+  const pid = ws?.projects.some((p) => p.id === projectId)
+    ? projectId
+    : (hashDoc?.projectId ?? ws?.projects[0]?.id ?? "");
+  const currentId = ws?.docs.some((d) => d.id === docId)
+    ? docId
+    : hashDoc && hashDoc.projectId === pid
+      ? hashDoc.id
+      : ws
+        ? (firstDoc(ws, pid)?.id ?? "")
+        : "";
   const meta = ws?.docs.find((d) => d.id === currentId);
+
+  useEffect(() => {
+    function onHash() {
+      setHash(readHash());
+      setProjectId("");
+      setDocId("");
+    }
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
+
+  const link = meta ? linkOf(meta) : "";
+  useEffect(() => {
+    if (link && readHash() !== link) history.replaceState(null, "", `#${encodeURI(link)}`);
+  }, [link]);
 
   // Reload the open document when it changes on disk or the selection changes.
   useEffect(() => {
