@@ -118,11 +118,15 @@ code, .mono { font-family: var(--font-mono); }
 /* Agent context */
 .ctx h2 { font-size: 13px; margin: 0; font-weight: 600; }
 .ctx .sub { font-size: 12.5px; color: var(--muted); margin: 2px 0 12px; }
-.segmented { display: flex; gap: 2px; background: var(--raised); border: 1px solid var(--border); border-radius: var(--radius); padding: 3px; margin-bottom: 14px; }
-.segmented button {
-  flex: 1; border: 0; background: none; border-radius: 6px; padding: 4px 0; font-size: 12.5px; color: var(--muted); cursor: pointer;
+.agent-pick { display: block; margin-bottom: 14px; }
+.agent-pick select {
+  width: 100%; height: 32px; padding: 0 30px 0 10px; font: inherit; font-size: 13px; color: var(--text);
+  background: var(--raised); border: 1px solid var(--border); border-radius: var(--radius); cursor: pointer;
+  appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-position: calc(100% - 15px) 14px, calc(100% - 10px) 14px; background-size: 5px 5px; background-repeat: no-repeat;
 }
-.segmented button[aria-checked="true"] { background: var(--indigo-bg); color: var(--text); font-weight: 500; }
+.agent-pick select:hover { border-color: var(--faint); }
 .total { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
 .total b { font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .total span { color: var(--muted); font-size: 12.5px; }

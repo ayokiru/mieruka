@@ -1,4 +1,3 @@
-import type { KeyboardEvent } from "react";
 import type { AgentContext, Issue } from "../data/types";
 
 interface Props {
@@ -10,6 +9,12 @@ interface Props {
   onIssue: (issueId: string) => void;
 }
 
+const NOTES: Record<string, string> = {
+  claude: "Estimated: Anthropic doesn't publish Claude's tokenizer.",
+  copilot: "Estimated. Shows Copilot on GitHub.com (chat, cloud agent, code review); in VS Code it depends on the agent you pick.",
+  antigravity: "Estimated. Antigravity, Google's successor to Gemini CLI, also reads GEMINI.md.",
+};
+
 function fmt(n: number) {
   return n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n);
 }
@@ -20,14 +25,8 @@ export function ContextPanel({ contexts, context, issues, onAgent, onOpenDoc, on
   const max = Math.max(...context.sources.map((s) => s.tokens ?? 0), 1);
   const approx = context.approximate ? "≈" : "";
 
-  // Arrow keys move between agents, as in a native segmented control.
-  function onKey(e: KeyboardEvent<HTMLDivElement>) {
-    if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
-    const i = contexts.findIndex((c) => c.agent === context.agent);
-    const next = contexts[(i + (e.key === "ArrowRight" ? 1 : contexts.length - 1)) % contexts.length];
-    onAgent(next.agent);
-    e.currentTarget.querySelector<HTMLButtonElement>(`[data-agent="${next.agent}"]`)?.focus();
-  }
+  const startTotal = (c: AgentContext) =>
+    c.sources.filter((s) => s.tokens !== null && !s.onDemand).reduce((sum, s) => sum + (s.tokens ?? 0), 0);
 
   return (
     <aside aria-label="What the agent sees">
@@ -36,20 +35,18 @@ export function ContextPanel({ contexts, context, issues, onAgent, onOpenDoc, on
         in <span className="mono">{context.dir}</span>
       </div>
 
-      <div className="segmented" role="radiogroup" aria-label="Agent" onKeyDown={onKey}>
-        {contexts.map((c) => (
-          <button
-            key={c.agent}
-            role="radio"
-            data-agent={c.agent}
-            aria-checked={c.agent === context.agent}
-            tabIndex={c.agent === context.agent ? 0 : -1}
-            onClick={() => onAgent(c.agent)}
-          >
-            {c.label}
-          </button>
-        ))}
-      </div>
+      {/* A pop-up menu: five agents don't fit a segmented control in this column. */}
+      <label className="agent-pick">
+        <span className="sr-only">Agent</span>
+        <select value={context.agent} onChange={(e) => onAgent(e.target.value)}>
+          {contexts.map((c) => (
+            <option key={c.agent} value={c.agent}>
+              {c.label} · {c.approximate ? "≈" : ""}
+              {fmt(startTotal(c))} tokens
+            </option>
+          ))}
+        </select>
+      </label>
 
       <div className="total">
         <b>
@@ -60,7 +57,7 @@ export function ContextPanel({ contexts, context, issues, onAgent, onOpenDoc, on
       </div>
       {context.approximate && (
         <div className="note">
-          {context.agent === "claude" ? "Estimated: Anthropic doesn't publish Claude's tokenizer." : "Estimated token counts."}
+          {NOTES[context.agent] ?? "Estimated token counts."}
         </div>
       )}
 
