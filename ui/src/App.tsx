@@ -51,6 +51,15 @@ function firstDoc(ws: Workspace, projectId: string) {
   )[0];
 }
 
+function resolvePath(from: string, href: string) {
+  const parts = from.split("/").slice(0, -1);
+  for (const seg of href.split("/")) {
+    if (seg === "..") parts.pop();
+    else if (seg && seg !== ".") parts.push(seg);
+  }
+  return parts.join("/");
+}
+
 const readHash = () => decodeURIComponent(window.location.hash.slice(1));
 
 export default function App() {
@@ -69,7 +78,7 @@ export default function App() {
   const [ctxPref, setCtxPref] = useState<boolean | null>(null); // null = follow window width
   const showCtx = ctxPref ?? !narrow;
   const [palette, setPalette] = useState(false);
-  const [toast, setToast] = useState<{ message: string; undo?: () => void } | null>(null);
+  const [toast, setToast] = useState<{ message: string; undo?: () => void; error?: boolean } | null>(null);
   const [editingId, setEditingId] = useState("");
   const [version, setVersion] = useState(0); // bumped after writes so the open document reloads
   const closeToast = useCallback(() => setToast(null), []);
@@ -164,7 +173,7 @@ export default function App() {
     try {
       await action();
     } catch (e) {
-      setToast({ message: e instanceof Error ? e.message : String(e) });
+      setToast({ message: e instanceof Error ? e.message : String(e), error: true });
     }
     await refresh();
     setVersion((v) => v + 1);
@@ -221,6 +230,18 @@ export default function App() {
         d.projectId === pid && d.path.replace(/\.md$/i, "").split("/").pop()?.toLowerCase() === name.toLowerCase(),
     );
     if (target) openDoc(target.id);
+    else setToast({ message: `No document named ${name} in this project` });
+  }
+
+  // Relative links and @imports resolve against the open document's folder, like Claude Code does.
+  function openPath(href: string) {
+    if (!meta) return;
+    const target = href.startsWith("~/") ? href : resolvePath(meta.path, href);
+    const hit =
+      ws?.docs.find((d) => d.projectId === meta.projectId && d.path === target) ??
+      ws?.docs.find((d) => d.path === target);
+    if (hit) openDoc(hit.id);
+    else setToast({ message: `${target} is not an agent doc in this workspace` });
   }
 
   function showIssue(issueId: string) {
@@ -325,6 +346,7 @@ export default function App() {
             onAccept={accept}
             onRevert={revert}
             onOpenWiki={openWiki}
+            onOpenPath={openPath}
             onIssue={showIssue}
           />
         ) : (
@@ -356,6 +378,7 @@ export default function App() {
       {toast && (
         <Toast
           message={toast.message}
+          error={toast.error}
           onUndo={toast.undo ? undoToast : undefined}
           onDone={closeToast}
         />

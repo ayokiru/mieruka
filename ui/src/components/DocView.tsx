@@ -13,6 +13,7 @@ interface Props {
   onAccept: (hunk: string) => void;
   onRevert: (hunk: string) => void;
   onOpenWiki: (name: string) => void;
+  onOpenPath: (path: string) => void;
   onIssue: (issueId: string) => void;
 }
 
@@ -29,14 +30,19 @@ export function DocView(props: Props) {
       props.onOpenWiki(wiki.dataset.wiki ?? decodeURIComponent(wiki.getAttribute("href") ?? ""));
       return;
     }
+    const mark = el.closest<HTMLElement>("mark[data-issue]");
+    if (mark) {
+      e.preventDefault();
+      props.onIssue(mark.dataset.issue!);
+      return;
+    }
     // Relative links point into the project; open them in mieruka instead of navigating away.
     const link = el.closest<HTMLAnchorElement>("a[href]");
     if (link && !/^[a-z]+:/i.test(link.getAttribute("href") ?? "")) {
       e.preventDefault();
-      props.onOpenWiki((link.getAttribute("href") ?? "").split("#")[0]);
+      const href = decodeURIComponent((link.getAttribute("href") ?? "").split("#")[0]);
+      if (href) props.onOpenPath(href);
     }
-    const mark = el.closest<HTMLElement>("mark[data-issue]");
-    if (mark) props.onIssue(mark.dataset.issue!);
   }
 
   return (

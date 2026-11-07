@@ -86,6 +86,12 @@ code, .mono { font-family: var(--font-mono); }
   font-size: 13px; background: var(--raised); border: 1px solid var(--border); border-radius: 5px; padding: 1px 5px;
 }
 .reader a { color: var(--indigo); }
+/* @imports: the files Claude Code pulls in, shown as links that open in place. */
+.reader a.import {
+  font-family: var(--font-mono); font-size: 13px; text-decoration: none;
+  background: var(--indigo-bg); border-radius: 5px; padding: 1px 6px;
+}
+.reader a.import:hover { text-decoration: underline; }
 .reader blockquote { margin: 8px 0; padding-left: 14px; border-left: 2px solid var(--border); color: var(--muted); }
 .reader pre { background: var(--raised); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 14px; overflow-x: auto; }
 .reader pre code { background: none; border: 0; padding: 0; }
@@ -151,6 +157,8 @@ code, .mono { font-family: var(--font-mono); }
   position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); display: flex; gap: 12px; align-items: center;
   background: var(--raised); border: 1px solid var(--border); border-radius: 10px; padding: 8px 8px 8px 14px; box-shadow: var(--shadow);
 }
+.toast:not(:has(.btn)) { padding: 10px 14px; }
+.toast.error { border-color: var(--red); box-shadow: inset 3px 0 0 var(--red), var(--shadow); }
 .overlay { z-index: 50; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.35); display: flex; justify-content: center; padding-top: 12vh; }
 .palette { width: min(560px, 90vw); background: var(--raised); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow); overflow: hidden; height: fit-content; }
 .palette input { width: 100%; border: 0; border-bottom: 1px solid var(--border); background: none; padding: 14px 16px; font: 15px var(--font-ui); color: var(--text); outline: none; }
