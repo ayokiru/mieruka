@@ -17,8 +17,10 @@ pub enum Format {
 struct Paint(bool);
 
 impl Paint {
+    /// NO_COLOR turns colors off, CLICOLOR_FORCE turns them on without a terminal (e.g. CI logs).
     fn new() -> Self {
-        Paint(std::io::stdout().is_terminal() && std::env::var_os("NO_COLOR").is_none())
+        let set = |k: &str| std::env::var_os(k).is_some_and(|v| !v.is_empty() && v != "0");
+        Paint(!set("NO_COLOR") && (set("CLICOLOR_FORCE") || std::io::stdout().is_terminal()))
     }
     fn wrap(&self, code: &str, s: &str) -> String {
         if self.0 {
